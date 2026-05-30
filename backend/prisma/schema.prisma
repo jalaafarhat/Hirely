@@ -1,0 +1,284 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum LocationType {
+  WORLDWIDE
+  COUNTRY
+  CITY
+}
+
+enum WorkMode {
+  REMOTE
+  HYBRID
+  ONSITE
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+}
+
+enum JobMatchStatus {
+  NEW
+  SAVED
+  HIDDEN
+  APPLIED
+}
+
+enum FeedbackType {
+  INTERESTED
+  NOT_INTERESTED
+}
+
+enum AgentRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String    @map("password_hash")
+  name              String
+  role              Role      @default(USER)
+  emailVerified     Boolean   @default(false) @map("email_verified")
+  emailVerifyToken  String?   @map("email_verify_token")
+  resetPasswordToken String?  @map("reset_password_token")
+  resetPasswordExpires DateTime? @map("reset_password_expires")
+  timezone          String    @default("UTC")
+  refreshToken      String?   @map("refresh_token")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  profile       Profile?
+  cvFile        CvFile?
+  preferences   UserPreferences?
+  jobMatches    JobMatch[]
+  sentJobs      SentJob[]
+  savedJobs     SavedJob[]
+  applications  Application[]
+  feedback      UserFeedback[]
+  emailLogs     EmailLog[]
+  agentRuns     AgentRun[]
+
+  @@map("users")
+}
+
+model Profile {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+  name            String?
+  email           String?
+  phone           String?
+  summary         String?  @db.Text
+  jobTitles       String[] @map("job_titles")
+  skills          String[]
+  technologies    String[]
+  yearsExperience Int      @default(0) @map("years_experience")
+  education       Json     @default("[]")
+  certifications  String[]
+  industries      String[]
+  languages       String[]
+  locations       String[]
+  seniority       String?
+  rawParsedData   Json?    @map("raw_parsed_data")
+  analyzedAt      DateTime @default(now()) @map("analyzed_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model CvFile {
+  id           String   @id @default(uuid())
+  userId       String   @unique @map("user_id")
+  filename     String
+  originalName String   @map("original_name")
+  mimeType     String   @map("mime_type")
+  size         Int
+  storageKey   String   @map("storage_key")
+  storageType  String   @default("local") @map("storage_type")
+  uploadedAt   DateTime @default(now()) @map("uploaded_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("cv_files")
+}
+
+model UserPreferences {
+  id             String       @id @default(uuid())
+  userId         String       @unique @map("user_id")
+  locationType   LocationType @default(WORLDWIDE) @map("location_type")
+  country        String?
+  city           String?
+  workModes      WorkMode[]   @map("work_modes")
+  jobTypes       JobType[]    @map("job_types")
+  minSalary      Int?         @map("min_salary")
+  matchThreshold Int          @default(75) @map("match_threshold")
+  agentEnabled   Boolean      @default(true) @map("agent_enabled")
+  digestHours    Int[]        @default([9, 15]) @map("digest_hours")
+  emailDigestEnabled Boolean  @default(true) @map("email_digest_enabled")
+  likedKeywords  String[]     @default([]) @map("liked_keywords")
+  dislikedKeywords String[]   @default([]) @map("disliked_keywords")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model Job {
+  id          String    @id @default(uuid())
+  title       String
+  company     String
+  location    String
+  description String    @db.Text
+  salary      String?
+  url         String    @unique
+  source      String
+  postedDate  DateTime? @map("posted_date")
+  workMode    WorkMode? @map("work_mode")
+  jobType     JobType?  @map("job_type")
+  externalId  String?   @map("external_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  matches     JobMatch[]
+  sentJobs    SentJob[]
+  savedJobs   SavedJob[]
+  applications Application[]
+  feedback    UserFeedback[]
+
+  @@index([source])
+  @@index([company])
+  @@map("jobs")
+}
+
+model JobMatch {
+  id          String         @id @default(uuid())
+  userId      String         @map("user_id")
+  jobId       String         @map("job_id")
+  matchScore  Int            @map("match_score")
+  reasoning   String         @db.Text
+  status      JobMatchStatus @default(NEW)
+  matchedAt   DateTime       @default(now()) @map("matched_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@index([userId, matchScore])
+  @@index([userId, matchedAt])
+  @@map("job_matches")
+}
+
+model SentJob {
+  id     String   @id @default(uuid())
+  userId String   @map("user_id")
+  jobId  String   @map("job_id")
+  jobUrl String   @map("job_url")
+  sentAt DateTime @default(now()) @map("sent_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobUrl])
+  @@map("sent_jobs")
+}
+
+model SavedJob {
+  id      String   @id @default(uuid())
+  userId  String   @map("user_id")
+  jobId   String   @map("job_id")
+  savedAt DateTime @default(now()) @map("saved_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@map("saved_jobs")
+}
+
+model Application {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  jobId       String   @map("job_id")
+  appliedAt   DateTime @default(now()) @map("applied_at")
+  notes       String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+  @@map("applications")
+}
+
+model UserFeedback {
+  id        String       @id @default(uuid())
+  userId    String       @map("user_id")
+  jobId     String       @map("job_id")
+  type      FeedbackType
+  keywords  String[]     @default([])
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_feedback")
+}
+
+model EmailLog {
+  id        String      @id @default(uuid())
+  userId    String      @map("user_id")
+  subject   String
+  jobCount  Int         @default(0) @map("job_count")
+  status    EmailStatus @default(PENDING)
+  error     String?
+  sentAt    DateTime?   @map("sent_at")
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("email_logs")
+}
+
+model AgentRun {
+  id           String         @id @default(uuid())
+  userId       String         @map("user_id")
+  status       AgentRunStatus @default(PENDING)
+  jobsFound    Int            @default(0) @map("jobs_found")
+  jobsMatched  Int            @default(0) @map("jobs_matched")
+  jobsSent     Int            @default(0) @map("jobs_sent")
+  error        String?
+  startedAt    DateTime       @default(now()) @map("started_at")
+  completedAt  DateTime?      @map("completed_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt])
+  @@map("agent_runs")
+}
