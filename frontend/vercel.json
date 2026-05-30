@@ -1,7 +1,11 @@
 {
   "rewrites": [
     {
-      "source": "/((?!assets/|favicon.ico|manifest.webmanifest).*)",
+      "source": "/api/v1/:path*",
+      "destination": "https://hirely-production-61e5.up.railway.app/api/v1/:path*"
+    },
+    {
+      "source": "/((?!assets/|favicon.ico|icon.svg|icons/|apple-touch-icon.png|manifest.webmanifest|api/).*)",
       "destination": "/index.html"
     }
   ]
