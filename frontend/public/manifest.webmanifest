@@ -2,7 +2,7 @@
   "name": "Hirely - AI Career Agent",
   "short_name": "Hirely",
   "description": "AI-powered job search and email digests",
-  "start_url": "/",
+  "start_url": "https://hirelycareeragent.com/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4f46e5",

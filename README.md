@@ -62,6 +62,33 @@ See `.env.example` for all configuration options. Key variables:
 | `SERPAPI_API_KEY` | Job search via Google Jobs |
 | `RESEND_API_KEY` | Transactional & digest emails |
 | `JWT_SECRET` | Access token signing key |
+| `APP_URL` | Public frontend URL (links in emails) |
+| `EMAIL_FROM` | Verified Resend sender address |
+
+## Production (hirelycareeragent.com)
+
+**Website:** https://hirelycareeragent.com
+
+Set these in your production backend environment:
+
+```env
+NODE_ENV=production
+APP_URL=https://hirelycareeragent.com
+API_URL=https://hirelycareeragent.com
+EMAIL_FROM=Hirely <noreply@jalaafarhat.com>
+CORS_ORIGINS=https://www.hirelycareeragent.com
+```
+
+The production frontend build uses `/api/v1` (same domain). Nginx proxies `/api/` to the NestJS backend — see `frontend/nginx.conf`.
+
+If you later verify `hirelycareeragent.com` on Resend, switch `EMAIL_FROM` to `noreply@hirelycareeragent.com`.
+
+Build for production:
+
+```bash
+cd frontend && npm run build
+cd ../backend && npm run build
+```
 
 ## Project Structure
 

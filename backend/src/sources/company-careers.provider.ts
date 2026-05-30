@@ -6,7 +6,7 @@ import {
   TARGET_COMPANY_BOARDS,
 } from './company-boards.config';
 
-const USER_AGENT = 'Hirely/1.0 (+https://hirely.app)';
+const USER_AGENT = 'Hirely/1.0 (+https://hirelycareeragent.com)';
 const MAX_PER_COMPANY = 15;
 
 @Injectable()
