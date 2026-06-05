@@ -122,8 +122,15 @@ ${cvText.slice(0, 20000)}`;
   async generateSearchQueries(profile: ParsedProfile): Promise<string[]> {
     const baseQueries = new Set<string>();
 
+    const years = profile.yearsExperience ?? 0;
+    const levelPrefix =
+      years <= 2 ? 'Junior' : years >= 7 ? 'Senior' : years >= 4 ? 'Mid' : '';
+
     for (const title of profile.jobTitles.slice(0, 3)) {
       baseQueries.add(title);
+      if (levelPrefix) {
+        baseQueries.add(`${levelPrefix} ${title}`);
+      }
       if (profile.seniority) {
         baseQueries.add(`${profile.seniority} ${title}`);
       }

@@ -1,13 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NormalizedJob } from '../common/types';
+import { JobSearchOptions } from '../common/types/search.types';
 import {
   CompanyBoardConfig,
   TARGET_COMPANY_BOARDS,
 } from './company-boards.config';
 
 const USER_AGENT = 'Hirely/1.0 (+https://hirelycareeragent.com)';
-const MAX_PER_COMPANY = 15;
+const MAX_PER_COMPANY = 25;
 
 @Injectable()
 export class CompanyCareersProvider {
@@ -15,15 +16,28 @@ export class CompanyCareersProvider {
 
   constructor(private config: ConfigService) {}
 
-  async search(query: string): Promise<NormalizedJob[]> {
-    const normalizedQuery = query.trim() || 'software engineer';
+  async search(
+    queries: string[],
+    options: JobSearchOptions = {},
+  ): Promise<NormalizedJob[]> {
+    const normalizedQueries = [
+      ...new Set(
+        queries.map((q) => q.trim()).filter(Boolean).slice(0, 4),
+      ),
+    ];
+    if (normalizedQueries.length === 0) {
+      normalizedQueries.push('software engineer');
+    }
+
     this.logger.log(
-      `Searching ${TARGET_COMPANY_BOARDS.length} company career sites for "${normalizedQuery}"`,
+      `Searching ${TARGET_COMPANY_BOARDS.length} company career sites: ${normalizedQueries.join(' | ')}`,
     );
 
     const batches = await Promise.allSettled(
-      TARGET_COMPANY_BOARDS.map((board) =>
-        this.searchBoard(board, normalizedQuery),
+      TARGET_COMPANY_BOARDS.flatMap((board) =>
+        normalizedQueries.map((query) =>
+          this.searchBoard(board, query, options),
+        ),
       ),
     );
 
@@ -49,21 +63,24 @@ export class CompanyCareersProvider {
   private async searchBoard(
     board: CompanyBoardConfig,
     query: string,
+    options: JobSearchOptions = {},
   ): Promise<NormalizedJob[]> {
     try {
       switch (board.type) {
         case 'amazon':
           return this.searchAmazon(query);
         case 'eightfold':
-          return this.searchEightfold(board, query);
+          return this.searchEightfold(board, query, options);
         case 'workday':
           return this.searchWorkday(board, query);
         case 'greenhouse':
           return this.searchGreenhouse(board, query);
         case 'paloalto':
           return this.searchPaloAlto(query);
+        case 'google':
+          return this.searchGoogle(query, options);
         case 'serp-site':
-          return this.searchViaSerpSite(board, query);
+          return this.searchViaSerpSite(board, query, options);
         default:
           return [];
       }
@@ -118,13 +135,14 @@ export class CompanyCareersProvider {
   private async searchEightfold(
     board: CompanyBoardConfig,
     query: string,
+    options: JobSearchOptions = {},
   ): Promise<NormalizedJob[]> {
     if (!board.eightfoldHost || !board.domain || !board.careerBase) return [];
 
     const params = new URLSearchParams({
       domain: board.domain,
       query,
-      location: '',
+      location: options.country || options.location || '',
       start: '0',
       sort_by: 'relevance',
     });
@@ -244,8 +262,17 @@ export class CompanyCareersProvider {
     };
 
     const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-    return (data.jobs || [])
-      .filter((job) => this.matchesQuery(job.title, terms))
+    const matched = (data.jobs || []).filter((job) =>
+      this.matchesQuery(
+        `${job.title} ${this.stripHtml(job.content || '')}`,
+        terms,
+      ),
+    );
+    const selected =
+      matched.length > 0
+        ? matched
+        : (data.jobs || []).slice(0, MAX_PER_COMPANY);
+    return selected
       .slice(0, MAX_PER_COMPANY)
       .map((job) => ({
         title: job.title,
@@ -324,9 +351,56 @@ export class CompanyCareersProvider {
     return jobs;
   }
 
+  private async searchGoogle(
+    query: string,
+    options: JobSearchOptions = {},
+  ): Promise<NormalizedJob[]> {
+    let searchQ = query;
+    if (options.remote && !query.toLowerCase().includes('remote')) {
+      searchQ = `${searchQ} remote`;
+    }
+    const params = new URLSearchParams({ q: searchQ });
+    if (options.country) params.set('location', options.country);
+
+    const response = await fetch(
+      `https://www.google.com/about/careers/applications/jobs/results/?${params}`,
+      { headers: { 'User-Agent': USER_AGENT } },
+    );
+    if (!response.ok) return [];
+
+    const html = await response.text();
+    const jobs: NormalizedJob[] = [];
+    const seen = new Set<string>();
+
+    const cardPattern =
+      /href="jobs\/results\/([^"]+)"[^>]*aria-label="Learn more about ([^"]+)"/g;
+    for (const match of html.matchAll(cardPattern)) {
+      const slug = match[1];
+      const title = match[2].trim();
+      const url = `https://www.google.com/about/careers/applications/jobs/results/${slug}`;
+      if (seen.has(url)) continue;
+      seen.add(url);
+      jobs.push({
+        title,
+        company: 'Google',
+        location: options.country || 'Unknown',
+        description: title,
+        salary: '',
+        url,
+        source: 'google',
+        postedDate: new Date().toISOString().split('T')[0],
+        externalId: slug.split('-')[0],
+      });
+      if (jobs.length >= MAX_PER_COMPANY) break;
+    }
+
+    return jobs;
+  }
+
   private async searchViaSerpSite(
     board: CompanyBoardConfig,
     query: string,
+    options: JobSearchOptions = {},
   ): Promise<NormalizedJob[]> {
     if (!board.siteFilter) return [];
 
@@ -339,6 +413,9 @@ export class CompanyCareersProvider {
       q: siteQuery,
       api_key: apiKey,
     });
+    if (options.country || options.location) {
+      params.set('location', options.country || options.location || '');
+    }
 
     try {
       const response = await fetch(

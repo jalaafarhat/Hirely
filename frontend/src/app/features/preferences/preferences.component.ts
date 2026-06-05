@@ -37,10 +37,21 @@ interface PreferencesPayload {
                   <option value="CITY">City</option>
                 </select>
               </div>
-              @if (prefs.locationType === 'COUNTRY') {
+              @if (prefs.locationType === 'COUNTRY' || prefs.workModes.includes('REMOTE')) {
                 <div class="form-group">
-                  <label class="form-label">Country</label>
-                  <input class="form-input" [(ngModel)]="prefs.country" name="country" placeholder="e.g. United States" />
+                  <label class="form-label">
+                    Country
+                    @if (prefs.workModes.includes('REMOTE')) {
+                      <span class="field-hint-inline">(required for remote — filters jobs by eligible location)</span>
+                    }
+                  </label>
+                  <input
+                    class="form-input"
+                    [(ngModel)]="prefs.country"
+                    name="country"
+                    placeholder="e.g. Israel, United States"
+                    [required]="prefs.workModes.includes('REMOTE')"
+                  />
                 </div>
               }
               @if (prefs.locationType === 'CITY') {
@@ -132,6 +143,7 @@ interface PreferencesPayload {
     .section-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
     .section-hint { color: var(--text-secondary); font-size: 13px; margin-bottom: 16px; }
     .field-hint { color: var(--text-secondary); font-size: 12px; margin-top: 6px; }
+    .field-hint-inline { color: var(--text-secondary); font-size: 12px; font-weight: 400; margin-left: 6px; }
     .success { color: var(--success); margin-bottom: 12px; }
     .error { color: var(--danger); margin-bottom: 12px; }
   `],
@@ -223,6 +235,11 @@ export class PreferencesComponent implements OnInit {
   }
 
   async save() {
+    if (this.prefs.workModes.includes('REMOTE') && !this.prefs.country?.trim()) {
+      this.error.set('Please enter your country when searching for remote work.');
+      return;
+    }
+
     this.saving.set(true);
     this.error.set('');
     this.saved.set(false);

@@ -4,6 +4,7 @@ export type CompanyBoardType =
   | 'workday'
   | 'greenhouse'
   | 'paloalto'
+  | 'google'
   | 'serp-site';
 
 export interface CompanyBoardConfig {
@@ -26,6 +27,12 @@ export interface CompanyBoardConfig {
 
 /** Top-tier employers searched directly on their career sites. */
 export const TARGET_COMPANY_BOARDS: CompanyBoardConfig[] = [
+  {
+    id: 'google',
+    name: 'Google',
+    type: 'google',
+    source: 'google',
+  },
   {
     id: 'amazon',
     name: 'Amazon',
@@ -69,6 +76,27 @@ export const TARGET_COMPANY_BOARDS: CompanyBoardConfig[] = [
     type: 'greenhouse',
     source: 'appsflyer',
     boardToken: 'appsflyer',
+  },
+  {
+    id: 'monday',
+    name: 'Monday.com',
+    type: 'serp-site',
+    source: 'monday',
+    siteFilter: 'monday.com/careers',
+  },
+  {
+    id: 'booking',
+    name: 'Booking.com',
+    type: 'serp-site',
+    source: 'booking',
+    siteFilter: 'careers.booking.com',
+  },
+  {
+    id: 'checkpoint',
+    name: 'Check Point',
+    type: 'serp-site',
+    source: 'checkpoint',
+    siteFilter: 'careers.checkpoint.com',
   },
   {
     id: 'paloalto',

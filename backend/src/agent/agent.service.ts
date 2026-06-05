@@ -11,9 +11,11 @@ import { EmailDigestService } from '../email/email-digest.service';
 import { AgentRunStatus, WorkMode } from '@prisma/client';
 import { NormalizedJob, ParsedProfile } from '../common/types';
 import { AgentRunResult } from '../common/types/agent.types';
+import { JobSearchOptions } from '../common/types/search.types';
+import { isJobRelevant } from '../matching/job-relevance.util';
 
-const MAX_QUERIES = 3;
-const MAX_JOBS_TO_MATCH = 20;
+const MAX_QUERIES = 5;
+const MAX_JOBS_TO_MATCH = 40;
 
 @Injectable()
 export class AgentService {
@@ -44,6 +46,14 @@ export class AgentService {
     if (!user.profile) {
       throw new BadRequestException(
         'Your CV is still being analyzed. Please wait a moment and try again.',
+      );
+    }
+    if (
+      user.preferences?.workModes.includes('REMOTE') &&
+      !user.preferences.country?.trim()
+    ) {
+      throw new BadRequestException(
+        'Please set your country in Preferences — it is required for remote job searches.',
       );
     }
 
@@ -123,8 +133,11 @@ export class AgentService {
       ).slice(0, MAX_QUERIES);
 
       const preferRemote = user.preferences.workModes.includes('REMOTE');
-      const queries = baseQueries.map((q) =>
-        preferRemote && !q.toLowerCase().includes('remote') ? `${q} remote` : q,
+      const userCountry = user.preferences.country?.trim();
+      const queries = this.buildSearchQueries(
+        baseQueries,
+        preferRemote,
+        userCountry,
       );
 
       this.logger.log(
@@ -132,10 +145,18 @@ export class AgentService {
       );
 
       const location = this.resolveSearchLocation(user.preferences);
+      const searchOptions: JobSearchOptions = {
+        location,
+        country: userCountry,
+        remote: preferRemote,
+      };
 
       const allJobs: NormalizedJob[] = [];
 
-      const companyJobs = await this.jobSources.searchCompanyBoards(parsedProfile);
+      const companyJobs = await this.jobSources.searchCompanyBoards(
+        parsedProfile,
+        searchOptions,
+      );
       allJobs.push(...companyJobs);
 
       for (const query of queries) {
@@ -144,8 +165,14 @@ export class AgentService {
       }
 
       const uniqueJobs = this.deduplicateByUrl(allJobs);
+      const profile = user.profile;
+      const preferences = user.preferences;
+      const relevantJobs = uniqueJobs.filter((job) =>
+        isJobRelevant(job, profile, preferences),
+      );
+
       const newJobs = (
-        await this.dedup.filterNewJobs(userId, uniqueJobs)
+        await this.dedup.filterNewJobs(userId, relevantJobs)
       ).slice(0, MAX_JOBS_TO_MATCH) as NormalizedJob[];
 
       const threshold = user.preferences.matchThreshold;
@@ -312,6 +339,23 @@ export class AgentService {
     return `Found ${matched} matching job${matched > 1 ? 's' : ''}! View them on the Jobs page. (Enable email digests in Preferences to also receive them by email.)`;
   }
 
+  private buildSearchQueries(
+    baseQueries: string[],
+    preferRemote: boolean,
+    userCountry?: string,
+  ): string[] {
+    return baseQueries.map((q) => {
+      let query = q;
+      if (preferRemote && !q.toLowerCase().includes('remote')) {
+        query = `${q} remote`;
+      }
+      if (preferRemote && userCountry) {
+        query = `${query} ${userCountry}`;
+      }
+      return query;
+    });
+  }
+
   private resolveSearchLocation(preferences: {
     locationType: string;
     country: string | null;
@@ -319,6 +363,9 @@ export class AgentService {
     workModes: string[];
   }): string | undefined {
     if (preferences.workModes.includes('REMOTE')) {
+      if (preferences.country?.trim()) {
+        return preferences.country.trim();
+      }
       return undefined;
     }
     if (preferences.locationType === 'COUNTRY' && preferences.country?.trim()) {

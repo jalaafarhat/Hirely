@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { JobSourceProvider } from './job-source.interface';
 
 import { NormalizedJob, ParsedProfile } from '../common/types';
+import { JobSearchOptions } from '../common/types/search.types';
 import { CompanyCareersProvider } from './company-careers.provider';
 
 
@@ -489,21 +490,34 @@ export class JobSourceService {
 
   }
 
-  async searchCompanyBoards(profile: ParsedProfile): Promise<NormalizedJob[]> {
-    const keywords = [
-      ...profile.jobTitles.slice(0, 2),
-      ...profile.technologies.slice(0, 3),
-    ].filter(Boolean);
+  async searchCompanyBoards(
+    profile: ParsedProfile,
+    options: JobSearchOptions = {},
+  ): Promise<NormalizedJob[]> {
+    const queries = new Set<string>();
 
-    let query = keywords.join(' ').trim();
-    if (!query && profile.seniority) {
-      query = `${profile.seniority} Software Engineer`;
-    }
-    if (!query) {
-      query = 'Software Engineer';
+    for (const title of profile.jobTitles.slice(0, 3)) {
+      queries.add(title);
+      if (profile.yearsExperience <= 2) {
+        queries.add(`Junior ${title}`);
+      } else if (profile.yearsExperience >= 5) {
+        queries.add(`Senior ${title}`);
+      }
     }
 
-    return this.companyCareers.search(query);
+    for (const tech of profile.technologies.slice(0, 3)) {
+      queries.add(`${tech} Engineer`);
+    }
+
+    if (profile.seniority) {
+      queries.add(`${profile.seniority} Software Engineer`);
+    }
+
+    if (queries.size === 0) {
+      queries.add('Software Engineer');
+    }
+
+    return this.companyCareers.search(Array.from(queries), options);
   }
 
 }
