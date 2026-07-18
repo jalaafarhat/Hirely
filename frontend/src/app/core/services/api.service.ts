@@ -50,7 +50,10 @@ export class ApiService {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({ message: 'Request failed' }));
-      throw new Error(err.message || `HTTP ${res.status}`);
+      const msg = Array.isArray(err.message)
+        ? err.message.join(', ')
+        : err.message || `HTTP ${res.status}`;
+      throw new Error(msg);
     }
 
     if (res.status === 204) return {} as T;

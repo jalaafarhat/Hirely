@@ -14,6 +14,7 @@ import { JobsModule } from './jobs/jobs.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AgentModule } from './agent/agent.module';
 import { AdminModule } from './admin/admin.module';
+import { BillingModule } from './billing/billing.module';
 import { JwtAuthGuard } from './auth/jwt-auth.guard';
 import { RolesGuard } from './auth/roles.guard';
 import { HealthController } from './health.controller';
@@ -48,6 +49,7 @@ import { HealthController } from './health.controller';
     DashboardModule,
     AgentModule,
     AdminModule,
+    BillingModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

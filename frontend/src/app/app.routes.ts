@@ -64,6 +64,11 @@ export const routes: Routes = [
           import('./features/saved-jobs/saved-jobs.component').then((m) => m.SavedJobsComponent),
       },
       {
+        path: 'billing',
+        loadComponent: () =>
+          import('./features/billing/billing.component').then((m) => m.BillingComponent),
+      },
+      {
         path: 'preferences',
         loadComponent: () =>
           import('./features/preferences/preferences.component').then((m) => m.PreferencesComponent),

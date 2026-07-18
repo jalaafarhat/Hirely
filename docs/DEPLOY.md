@@ -37,6 +37,10 @@ GOOGLE_API_KEY=<your-gemini-key>
 SERPAPI_API_KEY=<your-serpapi-key>
 RESEND_API_KEY=<your-resend-key>
 EMAIL_FROM=Hirely <noreply@jalaafarhat.com>
+PAYPAL_CLIENT_ID=<paypal-client-id>
+PAYPAL_CLIENT_SECRET=<paypal-client-secret>
+PAYPAL_PLAN_ID=<optional-paypal-plan-id>
+PAYPAL_LIVE=true
 APP_URL=https://hirelycareeragent.com
 API_URL=https://api.hirelycareeragent.com
 CORS_ORIGINS=https://hirelycareeragent.com,https://www.hirelycareeragent.com
@@ -52,6 +56,18 @@ CORS_ORIGINS=https://hirelycareeragent.com,https://www.hirelycareeragent.com
 
 ### 6. Verify
 Open `https://api.hirelycareeragent.com/api/v1/health` — should return `{ "status": "ok" }`.
+
+### 7. PayPal billing (Hirely Pro — $20/mo)
+1. Go to [PayPal Developer Dashboard](https://developer.paypal.com/dashboard/applications) → create an app
+2. Copy **Client ID** and **Secret** → `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET`
+3. Use **Sandbox** credentials locally (`PAYPAL_LIVE=false`); Live credentials in production (`PAYPAL_LIVE=true`)
+4. Optional: create a Billing Plan in PayPal and set `PAYPAL_PLAN_ID` (otherwise Hirely auto-creates a $20/mo plan on first checkout)
+5. Webhook (recommended): point to `https://your-api/api/v1/billing/webhook`  
+   Events: `BILLING.SUBSCRIPTION.ACTIVATED`, `BILLING.SUBSCRIPTION.CANCELLED`, `BILLING.SUBSCRIPTION.SUSPENDED`, `PAYMENT.SALE.COMPLETED`
+
+Docs: [PayPal Subscriptions](https://developer.paypal.com/docs/subscriptions/)
+
+`jalaa.c.m@gmail.com` is exempt from the paywall. All other users must subscribe before running the agent.
 
 ---
 

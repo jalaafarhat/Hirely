@@ -55,6 +55,13 @@ enum EmailStatus {
   FAILED
 }
 
+enum SubscriptionStatus {
+  NONE
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
 model User {
   id                String    @id @default(uuid())
   email             String    @unique
@@ -67,6 +74,10 @@ model User {
   resetPasswordExpires DateTime? @map("reset_password_expires")
   timezone          String    @default("UTC")
   refreshToken      String?   @map("refresh_token")
+  subscriptionStatus SubscriptionStatus @default(NONE) @map("subscription_status")
+  subscriptionExpiresAt DateTime? @map("subscription_expires_at")
+  paymeSubscriptionId String? @map("payme_subscription_id")
+  paypalSubscriptionId String? @map("paypal_subscription_id")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 

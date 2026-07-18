@@ -17,6 +17,12 @@ interface AgentResult {
   message: string;
 }
 
+interface BillingStatus {
+  hasAccess: boolean;
+  exempt: boolean;
+  status: string;
+}
+
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -28,10 +34,24 @@ interface AgentResult {
           <h1 class="page-title">Dashboard</h1>
           <p class="page-subtitle">Search on demand or wait for scheduled email digests</p>
         </div>
-        <button class="btn-primary" (click)="runAgent()" [disabled]="agentRunning()">
-          {{ agentRunning() ? 'Searching jobs...' : 'Run Job Search Now' }}
-        </button>
+        @if (billing()?.hasAccess) {
+          <button class="btn-primary" (click)="runAgent()" [disabled]="agentRunning()">
+            {{ agentRunning() ? 'Searching jobs...' : 'Run Job Search Now' }}
+          </button>
+        } @else {
+          <a routerLink="/billing" class="btn-primary">Subscribe to search — $20/mo</a>
+        }
       </div>
+
+      @if (billing() && !billing()!.hasAccess) {
+        <div class="paywall card">
+          <p>
+            The job search agent requires <strong>Hirely Pro</strong> ($20/month).
+            Subscribe on the Billing page to unlock on-demand and scheduled searches.
+          </p>
+          <a routerLink="/billing" class="btn-secondary">Go to Billing →</a>
+        </div>
+      }
 
       <p class="info-card">
         <strong>Manual search</strong> runs immediately across Google Jobs plus direct career sites (Amazon, Microsoft, NVIDIA, Apple, Meta, AppsFlyer, Palo Alto Networks).
@@ -88,6 +108,8 @@ interface AgentResult {
     .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; gap: 16px; flex-wrap: wrap; }
     .page-title { font-size: 24px; font-weight: 700; }
     .page-subtitle { color: var(--text-secondary); margin: 4px 0 0; }
+    .paywall { margin: 16px 0; padding: 16px 20px; border-color: #f59e0b; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+    .paywall p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text-secondary); flex: 1; min-width: 220px; }
     .info-card { background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 12px; padding: 16px 20px; margin: 16px 0; font-size: 14px; line-height: 1.6; color: var(--text-secondary); }
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-top: 24px; }
     .agent-loading { display: flex; align-items: center; gap: 16px; margin: 16px 0; padding: 16px 20px; }
@@ -102,6 +124,7 @@ interface AgentResult {
 export class DashboardComponent implements OnInit {
   private api = inject(ApiService);
   stats = signal<DashboardStats | null>(null);
+  billing = signal<BillingStatus | null>(null);
   loading = signal(true);
   agentRunning = signal(false);
   agentMessage = signal('');
@@ -110,6 +133,7 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit() {
     this.loadStats();
+    this.loadBilling();
   }
 
   loadStats() {
@@ -121,7 +145,24 @@ export class DashboardComponent implements OnInit {
       .finally(() => this.loading.set(false));
   }
 
+  loadBilling() {
+    this.api
+      .get<BillingStatus>('/billing/status')
+      .then((s) => this.billing.set(s))
+      .catch(() =>
+        this.billing.set({ hasAccess: false, exempt: false, status: 'NONE' }),
+      );
+  }
+
   async runAgent() {
+    if (!this.billing()?.hasAccess) {
+      this.agentMessage.set(
+        'Subscribe on the Billing page to run the job search agent.',
+      );
+      this.agentSuccess.set(false);
+      return;
+    }
+
     this.agentRunning.set(true);
     this.agentMessage.set('');
     this.lastResult.set(null);
@@ -132,7 +173,9 @@ export class DashboardComponent implements OnInit {
       this.agentSuccess.set(res.jobsMatched > 0);
       this.loadStats();
     } catch (e: unknown) {
-      this.agentMessage.set(e instanceof Error ? e.message : 'Job search failed');
+      this.agentMessage.set(
+        e instanceof Error ? e.message : 'Job search failed',
+      );
       this.agentSuccess.set(false);
     } finally {
       this.agentRunning.set(false);

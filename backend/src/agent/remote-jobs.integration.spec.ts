@@ -7,6 +7,7 @@ import { JobSourceService } from '../sources/job-source.service';
 import { JobMatchingService } from '../matching/job-matching.service';
 import { DuplicateDetectionService } from '../matching/duplicate-detection.service';
 import { EmailDigestService } from '../email/email-digest.service';
+import { BillingService } from '../billing/billing.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   allMockRemoteJobs,
@@ -120,6 +121,13 @@ describe('Remote jobs integration (mock data)', () => {
           },
         },
         {
+          provide: BillingService,
+          useValue: {
+            assertCanUseAgent: jest.fn().mockResolvedValue(undefined),
+            hasActiveAccess: jest.fn().mockReturnValue(true),
+          },
+        },
+        {
           provide: getQueueToken('job-agent'),
           useValue: { add: jest.fn() },
         },
@@ -193,6 +201,13 @@ describe('Remote search query building', () => {
         { provide: JobMatchingService, useValue: {} },
         { provide: DuplicateDetectionService, useValue: {} },
         { provide: EmailDigestService, useValue: {} },
+        {
+          provide: BillingService,
+          useValue: {
+            assertCanUseAgent: jest.fn(),
+            hasActiveAccess: jest.fn().mockReturnValue(true),
+          },
+        },
         {
           provide: getQueueToken('job-agent'),
           useValue: { add: jest.fn() },

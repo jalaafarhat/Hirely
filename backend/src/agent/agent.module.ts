@@ -7,6 +7,7 @@ import { CVModule } from '../cv/cv.module';
 import { SourcesModule } from '../sources/sources.module';
 import { MatchingModule } from '../matching/matching.module';
 import { EmailModule } from '../email/email.module';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { EmailModule } from '../email/email.module';
     SourcesModule,
     MatchingModule,
     EmailModule,
+    BillingModule,
   ],
   controllers: [AgentController],
   providers: [AgentService, AgentProcessor],

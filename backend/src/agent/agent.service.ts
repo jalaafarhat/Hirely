@@ -8,6 +8,7 @@ import { JobSourceService } from '../sources/job-source.service';
 import { JobMatchingService } from '../matching/job-matching.service';
 import { DuplicateDetectionService } from '../matching/duplicate-detection.service';
 import { EmailDigestService } from '../email/email-digest.service';
+import { BillingService } from '../billing/billing.service';
 import { AgentRunStatus, WorkMode } from '@prisma/client';
 import { NormalizedJob, ParsedProfile } from '../common/types';
 import { AgentRunResult } from '../common/types/agent.types';
@@ -29,10 +30,13 @@ export class AgentService {
     private matching: JobMatchingService,
     private dedup: DuplicateDetectionService,
     private emailDigest: EmailDigestService,
+    private billing: BillingService,
     @InjectQueue('job-agent') private agentQueue: Queue,
   ) {}
 
   async runNowForUser(userId: string): Promise<AgentRunResult> {
+    await this.billing.assertCanUseAgent(userId);
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { profile: true, preferences: true, cvFile: true },
@@ -93,6 +97,7 @@ export class AgentService {
 
       for (const user of users) {
         if (!user.profile || !user.preferences) continue;
+        if (!this.billing.hasActiveAccess(user)) continue;
 
         const userHour = this.getUserLocalHour(user.timezone, now);
         const digestHours = user.preferences.digestHours?.length
