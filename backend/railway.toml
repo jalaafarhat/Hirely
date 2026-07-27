@@ -3,7 +3,10 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
+# Run migrations before traffic (logs show clearly if DB vars are wrong)
+releaseCommand = "npx prisma migrate deploy"
+startCommand = "node dist/src/main.js"
 healthcheckPath = "/api/v1/health"
-healthcheckTimeout = 120
+healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 3
+restartPolicyMaxRetries = 5

@@ -31,11 +31,19 @@ import { HealthController } from './health.controller';
     }),
     BullModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (config: ConfigService) => ({
-        connection: {
-          url: config.get<string>('REDIS_URL') || 'redis://localhost:6380',
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const url =
+          config.get<string>('REDIS_URL') || 'redis://localhost:6380';
+        return {
+          connection: {
+            url,
+            maxRetriesPerRequest: null,
+            enableReadyCheck: false,
+            retryStrategy: (times: number) =>
+              Math.min(times * 500, 10_000),
+          },
+        };
+      },
       inject: [ConfigService],
     }),
     ScheduleModule.forRoot(),
