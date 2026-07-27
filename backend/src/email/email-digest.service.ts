@@ -40,7 +40,11 @@ export class EmailDigestService {
       },
     });
 
-    const result = await this.notification.sendEmailDetailed(email, subject, html);
+    const result = await this.notification.sendEmailDetailed(
+      email,
+      subject,
+      html,
+    );
 
     await this.prisma.emailLog.update({
       where: { id: log.id },

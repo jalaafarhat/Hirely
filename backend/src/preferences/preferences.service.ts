@@ -33,8 +33,7 @@ export class PreferencesService {
       );
     }
 
-    const keepCountry =
-      dto.locationType === 'COUNTRY' || prefersRemote;
+    const keepCountry = dto.locationType === 'COUNTRY' || prefersRemote;
     const data = {
       ...dto,
       country: keepCountry ? dto.country?.trim() || null : null,

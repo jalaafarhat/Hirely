@@ -39,7 +39,7 @@ interface BillingStatus {
             {{ agentRunning() ? 'Searching jobs...' : 'Run Job Search Now' }}
           </button>
         } @else {
-          <a routerLink="/billing" class="btn-primary">Subscribe to search — $20/mo</a>
+          <a routerLink="/billing" class="btn-primary">Subscribe — $20/mo</a>
         }
       </div>
 
@@ -47,9 +47,9 @@ interface BillingStatus {
         <div class="paywall card">
           <p>
             The job search agent requires <strong>Hirely Pro</strong> ($20/month).
-            Subscribe on the Billing page to unlock on-demand and scheduled searches.
+            Subscribe on the Subscription page to unlock on-demand and scheduled searches.
           </p>
-          <a routerLink="/billing" class="btn-secondary">Go to Billing →</a>
+          <a routerLink="/billing" class="btn-secondary">Go to Subscription →</a>
         </div>
       }
 
@@ -157,7 +157,7 @@ export class DashboardComponent implements OnInit {
   async runAgent() {
     if (!this.billing()?.hasAccess) {
       this.agentMessage.set(
-        'Subscribe on the Billing page to run the job search agent.',
+        'Subscribe on the Subscription page to run the job search agent.',
       );
       this.agentSuccess.set(false);
       return;

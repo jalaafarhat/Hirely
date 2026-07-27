@@ -8,10 +8,7 @@ import { ProfileAnalyzerService } from './profile-analyzer.service';
 import { StorageModule } from '../storage/storage.module';
 
 @Module({
-  imports: [
-    StorageModule,
-    MulterModule.register({ storage: memoryStorage() }),
-  ],
+  imports: [StorageModule, MulterModule.register({ storage: memoryStorage() })],
   controllers: [CVController],
   providers: [CVService, CVParserService, ProfileAnalyzerService],
   exports: [CVService, ProfileAnalyzerService],

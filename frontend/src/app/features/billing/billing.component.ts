@@ -20,8 +20,8 @@ interface BillingStatus {
   imports: [RouterLink],
   template: `
     <div class="page">
-      <h1 class="page-title">Billing</h1>
-      <p class="page-subtitle">Subscribe via PayPal to unlock the Hirely job search agent</p>
+      <h1 class="page-title">Subscription</h1>
+      <p class="page-subtitle">Pay $20/month via PayPal to unlock the Hirely job search agent</p>
 
       @if (banner()) {
         <div class="banner" [class.ok]="bannerOk()">{{ banner() }}</div>
@@ -60,6 +60,20 @@ interface BillingStatus {
             </span>
           </div>
 
+          @if (status()!.exempt) {
+            <div class="info-box">
+              Your account has <strong>free owner access</strong> — you do not need to subscribe.
+              To test the real PayPal payment flow, use the button below or register a different email.
+            </div>
+          }
+
+          @if (!status()!.paymentConfigured) {
+            <div class="info-box warn">
+              PayPal is not configured on the server. Add <code>PAYPAL_CLIENT_ID</code> and
+              <code>PAYPAL_CLIENT_SECRET</code> to Railway (production) or <code>backend/.env</code> (local), then restart the API.
+            </div>
+          }
+
           @if (status()!.expiresAt && status()!.hasAccess && !status()!.exempt) {
             <div class="status-row">
               <span class="label">Renews / expires</span>
@@ -72,21 +86,28 @@ interface BillingStatus {
           }
 
           <div class="actions">
-            @if (!status()!.hasAccess) {
+            @if (!status()!.hasAccess || status()!.exempt) {
               @if (status()!.paymentConfigured) {
                 <button class="btn-primary" type="button" (click)="checkout()" [disabled]="busy()">
-                  {{ busy() ? 'Redirecting to PayPal…' : 'Subscribe with PayPal — $' + priceDollars() + '/mo' }}
+                  @if (status()!.exempt) {
+                    {{ busy() ? 'Redirecting to PayPal…' : 'Test PayPal checkout' }}
+                  } @else {
+                    {{ busy() ? 'Redirecting to PayPal…' : 'Subscribe with PayPal — $' + priceDollars() + '/mo' }}
+                  }
                 </button>
-              } @else {
+                <p class="hint">
+                  You will be redirected to PayPal's secure page to log in and enter your card or PayPal balance.
+                  Hirely does not collect card details directly.
+                </p>
+              } @else if (!status()!.exempt) {
                 <button class="btn-primary" type="button" (click)="devActivate()" [disabled]="busy()">
                   {{ busy() ? 'Activating…' : 'Activate Pro (dev — no PayPal)' }}
                 </button>
                 <p class="hint">
-                  PayPal is not configured. Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET.
-                  Dev activation works only in non-production.
+                  PayPal keys missing. Dev activation works only when NODE_ENV is not production.
                 </p>
               }
-            } @else if (!status()!.exempt && status()!.paymentConfigured) {
+            } @else if (!status()!.exempt && status()!.hasAccess && status()!.paymentConfigured) {
               <button class="btn-secondary" type="button" (click)="cancel()" [disabled]="busy()">
                 {{ busy() ? 'Canceling…' : 'Cancel subscription' }}
               </button>
@@ -130,6 +151,22 @@ interface BillingStatus {
     .value.active { color: var(--success); font-weight: 600; }
     .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; align-items: center; }
     .hint { width: 100%; font-size: 12px; color: var(--text-secondary); margin: 0; }
+    .info-box {
+      margin: 16px 0 0;
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+    }
+    .info-box.warn {
+      border-color: #f59e0b;
+      background: #fffbeb;
+      color: #92400e;
+    }
+    .info-box code { font-size: 12px; }
     .error { color: var(--danger); margin: 12px 0 0; font-size: 14px; }
   `],
 })

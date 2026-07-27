@@ -13,10 +13,7 @@ export class PreferencesController {
   }
 
   @Put()
-  update(
-    @CurrentUser('id') userId: string,
-    @Body() dto: UpdatePreferencesDto,
-  ) {
+  update(@CurrentUser('id') userId: string, @Body() dto: UpdatePreferencesDto) {
     return this.preferencesService.update(userId, dto);
   }
 }

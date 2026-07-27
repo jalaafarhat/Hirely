@@ -22,7 +22,10 @@ export class CompanyCareersProvider {
   ): Promise<NormalizedJob[]> {
     const normalizedQueries = [
       ...new Set(
-        queries.map((q) => q.trim()).filter(Boolean).slice(0, 4),
+        queries
+          .map((q) => q.trim())
+          .filter(Boolean)
+          .slice(0, 4),
       ),
     ];
     if (normalizedQueries.length === 0) {
@@ -272,21 +275,18 @@ export class CompanyCareersProvider {
       matched.length > 0
         ? matched
         : (data.jobs || []).slice(0, MAX_PER_COMPANY);
-    return selected
-      .slice(0, MAX_PER_COMPANY)
-      .map((job) => ({
-        title: job.title,
-        company: board.name,
-        location: job.location?.name || 'Unknown',
-        description: this.stripHtml(job.content || job.title),
-        salary: '',
-        url: job.absolute_url,
-        source: board.source,
-        postedDate:
-          job.updated_at?.split('T')[0] ||
-          new Date().toISOString().split('T')[0],
-        externalId: String(job.id),
-      }));
+    return selected.slice(0, MAX_PER_COMPANY).map((job) => ({
+      title: job.title,
+      company: board.name,
+      location: job.location?.name || 'Unknown',
+      description: this.stripHtml(job.content || job.title),
+      salary: '',
+      url: job.absolute_url,
+      source: board.source,
+      postedDate:
+        job.updated_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+      externalId: String(job.id),
+    }));
   }
 
   private async searchPaloAlto(query: string): Promise<NormalizedJob[]> {
@@ -314,7 +314,7 @@ export class CompanyCareersProvider {
     const html = data.results || '';
     const jobs: NormalizedJob[] = [];
     const titledPattern =
-      /href=\"(\/en\/job\/[^\"]+)\"[^>]*class=\"[^\"]*job-title-link[^\"]*\"[^>]*>([^<]+)</g;
+      /href="(\/en\/job\/[^"]+)"[^>]*class="[^"]*job-title-link[^"]*"[^>]*>([^<]+)</g;
 
     for (const match of html.matchAll(titledPattern)) {
       const path = match[1];
@@ -333,7 +333,7 @@ export class CompanyCareersProvider {
 
     if (jobs.length > 0) return jobs;
 
-    for (const match of html.matchAll(/href=\"(\/en\/job\/[^\"]+)\"/g)) {
+    for (const match of html.matchAll(/href="(\/en\/job\/[^"]+)"/g)) {
       const path = match[1];
       jobs.push({
         title: this.titleFromPath(path),

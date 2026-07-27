@@ -35,9 +35,9 @@ describe('job-relevance.util (remote jobs)', () => {
 
   describe('isRemoteEligibleForCountry', () => {
     it('allows worldwide remote jobs for Israel user', () => {
-      expect(
-        isRemoteEligibleForCountry(worldwideRemoteJob(), 'Israel'),
-      ).toBe(true);
+      expect(isRemoteEligibleForCountry(worldwideRemoteJob(), 'Israel')).toBe(
+        true,
+      );
     });
 
     it('blocks India-only remote jobs for Israel user', () => {
@@ -119,9 +119,9 @@ describe('job-relevance.util (remote jobs)', () => {
 
     it('does not apply remote country filter when country is unset', () => {
       const prefsNoCountry = { ...preferences, country: null };
-      expect(
-        isJobRelevant(indiaOnlyRemoteJob(), profile, prefsNoCountry),
-      ).toBe(true);
+      expect(isJobRelevant(indiaOnlyRemoteJob(), profile, prefsNoCountry)).toBe(
+        true,
+      );
     });
 
     it('does not apply remote country filter for non-remote preferences', () => {
@@ -129,9 +129,9 @@ describe('job-relevance.util (remote jobs)', () => {
         ...preferences,
         workModes: ['ONSITE' as const],
       };
-      expect(
-        isJobRelevant(indiaOnlyRemoteJob(), profile, onsitePrefs),
-      ).toBe(true);
+      expect(isJobRelevant(indiaOnlyRemoteJob(), profile, onsitePrefs)).toBe(
+        true,
+      );
     });
   });
 });

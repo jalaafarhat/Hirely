@@ -3,7 +3,15 @@ import { Profile, UserPreferences } from '@prisma/client';
 
 const COUNTRY_ALIASES: Record<string, string[]> = {
   israel: ['israel', 'israeli', 'tel aviv', 'tel-aviv', 'herzliya', 'haifa'],
-  india: ['india', 'indian', 'bangalore', 'bengaluru', 'hyderabad', 'mumbai', 'delhi'],
+  india: [
+    'india',
+    'indian',
+    'bangalore',
+    'bengaluru',
+    'hyderabad',
+    'mumbai',
+    'delhi',
+  ],
   'united states': [
     'united states',
     'usa',
@@ -232,7 +240,9 @@ export function isJobRelevant(
     }
   }
 
-  if (!isExperienceCompatible(profile.yearsExperience, job.title, job.description)) {
+  if (
+    !isExperienceCompatible(profile.yearsExperience, job.title, job.description)
+  ) {
     return false;
   }
 

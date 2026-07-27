@@ -10,11 +10,7 @@ import {
   IsArray,
   ArrayMinSize,
 } from 'class-validator';
-import {
-  LocationType,
-  WorkMode,
-  JobType,
-} from '@prisma/client';
+import { LocationType, WorkMode, JobType } from '@prisma/client';
 
 export class UpdatePreferencesDto {
   @IsOptional()

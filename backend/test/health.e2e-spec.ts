@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
+import { Server } from 'http';
 import { AppModule } from '../src/app.module';
 
 describe('Health (e2e)', () => {
@@ -22,7 +23,8 @@ describe('Health (e2e)', () => {
   });
 
   it('/api/v1/health (GET)', () => {
-    return request(app.getHttpServer())
+    const server = app.getHttpServer() as Server;
+    return request(server)
       .get('/api/v1/health')
       .expect(200)
       .expect({ status: 'ok', service: 'hirely-api' });

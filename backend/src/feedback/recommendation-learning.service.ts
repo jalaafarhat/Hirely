@@ -8,11 +8,7 @@ export class RecommendationLearningService {
 
   constructor(private prisma: PrismaService) {}
 
-  async recordFeedback(
-    userId: string,
-    jobId: string,
-    type: FeedbackType,
-  ) {
+  async recordFeedback(userId: string, jobId: string, type: FeedbackType) {
     const job = await this.prisma.job.findUnique({ where: { id: jobId } });
     if (!job) return;
 
@@ -56,9 +52,26 @@ export class RecommendationLearningService {
   private extractKeywords(title: string, description: string): string[] {
     const text = `${title} ${description}`.toLowerCase();
     const techKeywords = [
-      'angular', 'react', 'vue', 'typescript', 'javascript', 'node',
-      'python', 'java', 'go', 'rust', 'php', 'wordpress', 'aws', 'docker',
-      'kubernetes', 'sql', 'mongodb', 'graphql', 'nestjs', 'spring',
+      'angular',
+      'react',
+      'vue',
+      'typescript',
+      'javascript',
+      'node',
+      'python',
+      'java',
+      'go',
+      'rust',
+      'php',
+      'wordpress',
+      'aws',
+      'docker',
+      'kubernetes',
+      'sql',
+      'mongodb',
+      'graphql',
+      'nestjs',
+      'spring',
     ];
     return techKeywords.filter((k) => text.includes(k));
   }

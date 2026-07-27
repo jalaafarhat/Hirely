@@ -11,7 +11,9 @@ export class AgentProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<{ userId: string; sendEmail?: boolean }>): Promise<void> {
+  async process(
+    job: Job<{ userId: string; sendEmail?: boolean }>,
+  ): Promise<void> {
     this.logger.log(`Processing agent job for user ${job.data.userId}`);
     await this.agentService.runForUser(job.data.userId, {
       sendEmail: job.data.sendEmail ?? true,

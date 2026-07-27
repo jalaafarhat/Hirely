@@ -24,7 +24,7 @@ import { ThemeService } from '../core/services/theme.service';
           <a routerLink="/saved-jobs" routerLinkActive="active" (click)="closeMenu()">Saved Jobs</a>
           <a routerLink="/profile" routerLinkActive="active" (click)="closeMenu()">Profile</a>
           <a routerLink="/preferences" routerLinkActive="active" (click)="closeMenu()">Preferences</a>
-          <a routerLink="/billing" routerLinkActive="active" (click)="closeMenu()">Billing</a>
+          <a routerLink="/billing" routerLinkActive="active" (click)="closeMenu()">Subscription</a>
           <a routerLink="/settings" routerLinkActive="active" (click)="closeMenu()">Settings</a>
           @if (auth.isAdmin()) {
             <a routerLink="/admin" routerLinkActive="active" (click)="closeMenu()">Admin</a>

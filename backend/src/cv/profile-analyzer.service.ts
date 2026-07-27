@@ -69,7 +69,10 @@ ${cvText.slice(0, 20000)}`;
       const parsed = JSON.parse(text) as ParsedProfile;
       return this.normalizeProfile(parsed);
     } catch (error) {
-      this.logger.error('Profile analysis failed, retrying without JSON mode', error);
+      this.logger.error(
+        'Profile analysis failed, retrying without JSON mode',
+        error,
+      );
       return this.analyzeProfileFallback(cvText);
     }
   }
@@ -95,10 +98,9 @@ ${cvText.slice(0, 20000)}`;
   normalizeProfile(parsed: Partial<ParsedProfile>): ParsedProfile {
     const cleanArray = (arr: unknown): string[] => {
       if (!Array.isArray(arr)) return [];
-      return [...new Set(arr.map((s) => String(s).trim()).filter(Boolean))].slice(
-        0,
-        20,
-      );
+      return [
+        ...new Set(arr.map((s) => String(s).trim()).filter(Boolean)),
+      ].slice(0, 20);
     };
 
     return {
@@ -119,7 +121,7 @@ ${cvText.slice(0, 20000)}`;
     };
   }
 
-  async generateSearchQueries(profile: ParsedProfile): Promise<string[]> {
+  generateSearchQueries(profile: ParsedProfile): Promise<string[]> {
     const baseQueries = new Set<string>();
 
     const years = profile.yearsExperience ?? 0;
@@ -155,7 +157,7 @@ ${cvText.slice(0, 20000)}`;
       baseQueries.add('Remote Developer');
     }
 
-    return Array.from(baseQueries).slice(0, 8);
+    return Promise.resolve(Array.from(baseQueries).slice(0, 8));
   }
 
   private emptyProfile(): ParsedProfile {

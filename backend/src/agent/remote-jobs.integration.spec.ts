@@ -9,6 +9,7 @@ import { DuplicateDetectionService } from '../matching/duplicate-detection.servi
 import { EmailDigestService } from '../email/email-digest.service';
 import { BillingService } from '../billing/billing.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { NormalizedJob } from '../common/types';
 import {
   allMockRemoteJobs,
   indiaOnlyRemoteJob,
@@ -25,7 +26,9 @@ describe('Remote jobs integration (mock data)', () => {
   let agentService: AgentService;
   let jobSourceSearchAll: jest.Mock;
   let jobSourceSearchCompanyBoards: jest.Mock;
-  let matchJobMock: jest.Mock;
+  let matchJobMock: jest.MockedFunction<
+    (job: NormalizedJob) => Promise<{ matchScore: number; reasoning: string }>
+  >;
   let prismaUserFindUnique: jest.Mock;
 
   const mockRun = { id: 'run-1', userId: MOCK_USER_ID };
@@ -45,7 +48,7 @@ describe('Remote jobs integration (mock data)', () => {
       .fn()
       .mockResolvedValue([israelRemoteJob()]);
     prismaUserFindUnique = jest.fn().mockResolvedValue(mockUser);
-    matchJobMock = jest.fn().mockImplementation((job) => {
+    matchJobMock = jest.fn().mockImplementation((job: NormalizedJob) => {
       if (job.url === seniorRemoteJob().url) {
         return Promise.resolve({ matchScore: 25, reasoning: 'Too senior' });
       }
@@ -75,9 +78,11 @@ describe('Remote jobs integration (mock data)', () => {
               findUnique: prismaUserFindUnique,
             },
             job: {
-              upsert: jest.fn().mockImplementation(({ create }) =>
-                Promise.resolve({ id: `job-${create.url}`, ...create }),
-              ),
+              upsert: jest
+                .fn()
+                .mockImplementation(({ create }: { create: NormalizedJob }) =>
+                  Promise.resolve({ id: `job-${create.url}`, ...create }),
+                ),
             },
             jobMatch: {
               upsert: jest.fn().mockResolvedValue({}),
@@ -111,7 +116,9 @@ describe('Remote jobs integration (mock data)', () => {
           useValue: {
             filterNewJobs: jest
               .fn()
-              .mockImplementation((_userId, jobs) => Promise.resolve(jobs)),
+              .mockImplementation((_userId: string, jobs: NormalizedJob[]) =>
+                Promise.resolve(jobs),
+              ),
           },
         },
         {
@@ -158,7 +165,10 @@ describe('Remote jobs integration (mock data)', () => {
     await agentService.runForUser(MOCK_USER_ID, { sendEmail: false });
 
     expect(jobSourceSearchAll).toHaveBeenCalled();
-    const firstSearchCall = jobSourceSearchAll.mock.calls[0];
+    const firstSearchCall = jobSourceSearchAll.mock.calls[0] as [
+      string,
+      string,
+    ];
     expect(firstSearchCall[0]).toMatch(/remote/i);
     expect(firstSearchCall[0]).toMatch(/israel/i);
     expect(firstSearchCall[1]).toBe('Israel');

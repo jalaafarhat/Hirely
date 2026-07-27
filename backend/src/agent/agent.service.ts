@@ -178,7 +178,7 @@ export class AgentService {
 
       const newJobs = (
         await this.dedup.filterNewJobs(userId, relevantJobs)
-      ).slice(0, MAX_JOBS_TO_MATCH) as NormalizedJob[];
+      ).slice(0, MAX_JOBS_TO_MATCH);
 
       const threshold = user.preferences.matchThreshold;
       const matchedForEmail: Array<{

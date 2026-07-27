@@ -9,10 +9,7 @@ export class AdminController {
   constructor(private prisma: PrismaService) {}
 
   @Get('users')
-  getUsers(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
+  getUsers(@Query('page') page?: string, @Query('limit') limit?: string) {
     const p = page ? parseInt(page) : 1;
     const l = Math.min(limit ? parseInt(limit) : 20, 100);
     return this.prisma.user.findMany({

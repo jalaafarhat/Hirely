@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { JobMatchStatus, FeedbackType, WorkMode } from '@prisma/client';
+import { JobMatchStatus, FeedbackType } from '@prisma/client';
 import { RecommendationLearningService } from '../feedback/recommendation-learning.service';
 
 interface JobQuery {
@@ -35,8 +35,9 @@ export class JobsService {
 
     const jobWhere: Record<string, unknown> = {};
     if (query.source) jobWhere.source = query.source;
-    if (query.company) jobWhere.company = { contains: query.company, mode: 'insensitive' };
-    if (query.workMode) jobWhere.workMode = query.workMode.toUpperCase() as WorkMode;
+    if (query.company)
+      jobWhere.company = { contains: query.company, mode: 'insensitive' };
+    if (query.workMode) jobWhere.workMode = query.workMode.toUpperCase();
 
     if (Object.keys(jobWhere).length) where.job = jobWhere;
 
@@ -126,11 +127,7 @@ export class JobsService {
     return { message: 'Marked as applied' };
   }
 
-  async submitFeedback(
-    userId: string,
-    matchId: string,
-    type: FeedbackType,
-  ) {
+  async submitFeedback(userId: string, matchId: string, type: FeedbackType) {
     const match = await this.findMatch(userId, matchId);
     await this.learning.recordFeedback(userId, match.jobId, type);
     return { message: 'Feedback recorded' };

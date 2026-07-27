@@ -7,8 +7,10 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 function isAllowedDevOrigin(origin: string, appUrl: string): boolean {
   if (origin === appUrl) return true;
   if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
-  if (/^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin)) return true;
-  if (/^https?:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin)) return true;
+  if (/^https?:\/\/192\.168\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin))
+    return true;
+  if (/^https?:\/\/10\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(origin))
+    return true;
   return false;
 }
 
@@ -31,7 +33,11 @@ async function bootstrap() {
   const isDev = config.get<string>('NODE_ENV') !== 'production';
   const appUrl = config.get<string>('APP_URL') || 'http://localhost:4200';
   const extraOrigins =
-    config.get<string>('CORS_ORIGINS')?.split(',').map((o) => o.trim()).filter(Boolean) || [];
+    config
+      .get<string>('CORS_ORIGINS')
+      ?.split(',')
+      .map((o) => o.trim())
+      .filter(Boolean) || [];
 
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(
@@ -73,4 +79,4 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
   logger.log(`Hirely API running on http://0.0.0.0:${port}/api/v1`);
 }
-bootstrap();
+void bootstrap();

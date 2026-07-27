@@ -33,16 +33,14 @@ export class BillingService {
   private readonly clientId: string | null;
   private readonly clientSecret: string | null;
   private readonly apiBase: string;
-  private cachedAccessToken: { token: string; expiresAt: number } | null =
-    null;
+  private cachedAccessToken: { token: string; expiresAt: number } | null = null;
   private cachedPlanId: string | null;
 
   constructor(
     private prisma: PrismaService,
     private config: ConfigService,
   ) {
-    this.clientId =
-      this.config.get<string>('PAYPAL_CLIENT_ID')?.trim() || null;
+    this.clientId = this.config.get<string>('PAYPAL_CLIENT_ID')?.trim() || null;
     this.clientSecret =
       this.config.get<string>('PAYPAL_CLIENT_SECRET')?.trim() || null;
     this.cachedPlanId =
@@ -98,7 +96,7 @@ export class BillingService {
     if (!user) throw new ForbiddenException('User not found');
     if (!this.hasActiveAccess(user)) {
       throw new ForbiddenException(
-        'An active Hirely Pro subscription ($20/month) is required to run the job search agent. Go to Billing to subscribe.',
+        'An active Hirely Pro subscription ($20/month) is required to run the job search agent. Go to Subscription to subscribe.',
       );
     }
   }
@@ -137,16 +135,12 @@ export class BillingService {
       where: { id: userId },
     });
 
-    if (this.isExemptEmail(user.email)) {
-      throw new BadRequestException(
-        'Your account already has free access to the agent.',
-      );
-    }
-    if (this.hasActiveAccess(user)) {
+    if (!this.isExemptEmail(user.email) && this.hasActiveAccess(user)) {
       throw new BadRequestException('You already have an active subscription.');
     }
 
-    const appUrl = this.config.get<string>('APP_URL') || 'http://localhost:4200';
+    const appUrl =
+      this.config.get<string>('APP_URL') || 'http://localhost:4200';
     const planId = await this.ensurePlanId();
 
     const data = await this.paypalFetch<{
@@ -303,13 +297,13 @@ export class BillingService {
    * @see https://developer.paypal.com/docs/api/webhooks/v1/
    */
   async handleWebhook(payload: Record<string, unknown>): Promise<void> {
-    const eventType = String(payload['event_type'] || '');
+    const eventType = this.webhookString(payload['event_type']);
     const resource = (payload['resource'] || {}) as Record<string, unknown>;
 
-    const subscriptionId = String(
-      resource['id'] || resource['billing_agreement_id'] || '',
+    const subscriptionId = this.webhookString(
+      resource['id'] ?? resource['billing_agreement_id'],
     ).trim();
-    const customId = String(resource['custom_id'] || '').trim();
+    const customId = this.webhookString(resource['custom_id']).trim();
 
     this.logger.log(
       `PayPal webhook: ${eventType} sub=${subscriptionId || '?'} user=${customId || '?'}`,
@@ -324,7 +318,9 @@ export class BillingService {
         : null;
 
     if (!user) {
-      this.logger.warn(`PayPal webhook: no user for ${customId || subscriptionId}`);
+      this.logger.warn(
+        `PayPal webhook: no user for ${customId || subscriptionId}`,
+      );
       return;
     }
 
@@ -363,6 +359,14 @@ export class BillingService {
         data: { subscriptionStatus: SubscriptionStatus.PAST_DUE },
       });
     }
+  }
+
+  private webhookString(value: unknown): string {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+    return '';
   }
 
   private async ensurePlanId(): Promise<string> {
@@ -428,9 +432,9 @@ export class BillingService {
       throw new BadRequestException('PayPal credentials missing');
     }
 
-    const auth = Buffer.from(
-      `${this.clientId}:${this.clientSecret}`,
-    ).toString('base64');
+    const auth = Buffer.from(`${this.clientId}:${this.clientSecret}`).toString(
+      'base64',
+    );
 
     const res = await fetch(`${this.apiBase}/v1/oauth2/token`, {
       method: 'POST',

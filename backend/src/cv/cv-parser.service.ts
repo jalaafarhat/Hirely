@@ -34,7 +34,11 @@ export class CVParserService {
     }
   }
 
-  async extractText(buffer: Buffer, mimeType: string, filename: string): Promise<string> {
+  async extractText(
+    buffer: Buffer,
+    mimeType: string,
+    filename: string,
+  ): Promise<string> {
     const ext = path.extname(filename).toLowerCase();
 
     if (

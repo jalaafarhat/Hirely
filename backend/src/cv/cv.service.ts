@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { CVParserService } from './cv-parser.service';
@@ -74,7 +75,7 @@ export class CVService {
         languages: parsed.languages,
         locations: parsed.locations,
         seniority: parsed.seniority,
-        rawParsedData: parsed as object,
+        rawParsedData: parsed as unknown as Prisma.InputJsonValue,
       },
       update: {
         name: parsed.name,
@@ -91,7 +92,7 @@ export class CVService {
         languages: parsed.languages,
         locations: parsed.locations,
         seniority: parsed.seniority,
-        rawParsedData: parsed as object,
+        rawParsedData: parsed as unknown as Prisma.InputJsonValue,
         analyzedAt: new Date(),
       },
     });
@@ -140,7 +141,9 @@ export class CVService {
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
-    const existing = await this.prisma.profile.findUnique({ where: { userId } });
+    const existing = await this.prisma.profile.findUnique({
+      where: { userId },
+    });
     if (!existing) {
       throw new NotFoundException('No profile found. Upload a CV first.');
     }
@@ -178,7 +181,7 @@ export class CVService {
         languages: normalized.languages,
         locations: normalized.locations,
         seniority: normalized.seniority,
-        rawParsedData: normalized as object,
+        rawParsedData: normalized as unknown as Prisma.InputJsonValue,
       },
     });
 

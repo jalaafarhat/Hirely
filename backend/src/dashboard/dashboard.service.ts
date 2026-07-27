@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DashboardStats } from '../common/types';
 
@@ -13,28 +13,23 @@ export class DashboardService {
     const weekAgo = new Date(today);
     weekAgo.setDate(weekAgo.getDate() - 7);
 
-    const [
-      newJobsToday,
-      jobsThisWeek,
-      avgScore,
-      totalMatched,
-      emailsSent,
-    ] = await Promise.all([
-      this.prisma.jobMatch.count({
-        where: { userId, matchedAt: { gte: today } },
-      }),
-      this.prisma.jobMatch.count({
-        where: { userId, matchedAt: { gte: weekAgo } },
-      }),
-      this.prisma.jobMatch.aggregate({
-        where: { userId },
-        _avg: { matchScore: true },
-      }),
-      this.prisma.jobMatch.count({ where: { userId } }),
-      this.prisma.emailLog.count({
-        where: { userId, status: 'SENT' },
-      }),
-    ]);
+    const [newJobsToday, jobsThisWeek, avgScore, totalMatched, emailsSent] =
+      await Promise.all([
+        this.prisma.jobMatch.count({
+          where: { userId, matchedAt: { gte: today } },
+        }),
+        this.prisma.jobMatch.count({
+          where: { userId, matchedAt: { gte: weekAgo } },
+        }),
+        this.prisma.jobMatch.aggregate({
+          where: { userId },
+          _avg: { matchScore: true },
+        }),
+        this.prisma.jobMatch.count({ where: { userId } }),
+        this.prisma.emailLog.count({
+          where: { userId, status: 'SENT' },
+        }),
+      ]);
 
     return {
       newJobsToday,

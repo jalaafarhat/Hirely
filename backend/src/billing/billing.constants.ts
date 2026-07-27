@@ -1,7 +1,5 @@
 /** Accounts that skip the Hirely Pro paywall. */
-export const BILLING_EXEMPT_EMAILS = new Set([
-  'jalaa.c.m@gmail.com',
-]);
+export const BILLING_EXEMPT_EMAILS = new Set(['jalaa.c.m@gmail.com']);
 
 /** $20.00 USD per month */
 export const MONTHLY_PRICE = '20.00';

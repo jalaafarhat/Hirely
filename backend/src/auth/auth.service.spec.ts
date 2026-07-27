@@ -22,9 +22,18 @@ describe('AuthService', () => {
       providers: [
         AuthService,
         { provide: PrismaService, useValue: mockPrisma },
-        { provide: JwtService, useValue: { signAsync: jest.fn().mockResolvedValue('token') } },
-        { provide: ConfigService, useValue: { get: jest.fn().mockReturnValue('secret') } },
-        { provide: NotificationService, useValue: { sendVerificationEmail: jest.fn() } },
+        {
+          provide: JwtService,
+          useValue: { signAsync: jest.fn().mockResolvedValue('token') },
+        },
+        {
+          provide: ConfigService,
+          useValue: { get: jest.fn().mockReturnValue('secret') },
+        },
+        {
+          provide: NotificationService,
+          useValue: { sendVerificationEmail: jest.fn() },
+        },
       ],
     }).compile();
 
