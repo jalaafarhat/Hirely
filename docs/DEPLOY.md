@@ -91,10 +91,12 @@ If `dist/frontend/browser` fails, try `dist/frontend` instead.
 ### 3. Environment variables (Vercel → Settings → Environment Variables)
 
 ```
-API_URL=https://api.hirelycareeragent.com/api/v1
+API_URL=https://YOUR-RAILWAY-APP.up.railway.app/api/v1
 ```
 
-This is injected at build time by `scripts/inject-api-url.mjs`.
+**Important:** Set this to your live Railway public URL (not `/api/v1` alone). The build script injects it into the frontend so login and billing call the API directly.
+
+After redeploying Railway, update `API_URL` if the `*.up.railway.app` domain changed. Also update the rewrite destination in `frontend/vercel.json` if you rely on the `/api/v1` proxy fallback.
 
 ### 4. Deploy
 Click **Deploy**. Note the `*.vercel.app` preview URL and test login.
@@ -107,11 +109,25 @@ Click **Deploy**. Note the `*.vercel.app` preview URL and test login.
 
 ## Step 3 — Final checks
 
+- [ ] `https://YOUR-RAILWAY-APP.up.railway.app/api/v1/health` returns `{ "status": "ok" }`
 - [ ] `https://hirelycareeragent.com` loads the app
 - [ ] Register / login works
 - [ ] CV upload works
 - [ ] Job search runs
+- [ ] Subscription page shows PayPal checkout (or dev activate locally)
 - [ ] Verification emails link to `https://hirelycareeragent.com/verify-email?...`
+
+---
+
+## Troubleshooting
+
+### Login shows "Load failed" or "Cannot reach the server"
+
+The frontend cannot reach the NestJS API. Common causes:
+
+1. **Railway service deleted or stopped** — open [railway.app](https://railway.app), redeploy the backend from GitHub, copy the new `*.up.railway.app` URL.
+2. **Stale Vercel proxy** — `frontend/vercel.json` rewrites `/api/v1` to Railway. If Railway gave you a new URL, update that file **or** set Vercel env `API_URL` to the full Railway URL and redeploy the frontend.
+3. **Health check** — visit `https://YOUR-RAILWAY-URL.up.railway.app/api/v1/health`. If you see `Application not found`, the Railway deployment does not exist.
 
 ---
 

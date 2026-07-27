@@ -43,26 +43,40 @@ export class AuthService {
   }
 
   async register(email: string, password: string, name: string) {
-    const res = await fetch(`${this.apiUrl}/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, name }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.apiUrl}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, name }),
+      });
+    } catch {
+      throw new Error(
+        'Cannot reach the server. The API may be offline — try again in a few minutes.',
+      );
+    }
     if (!res.ok) {
-      const err = await res.json();
+      const err = await res.json().catch(() => ({ message: 'Registration failed' }));
       throw new Error(err.message || 'Registration failed');
     }
     return res.json();
   }
 
   async login(email: string, password: string) {
-    const res = await fetch(`${this.apiUrl}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.apiUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+    } catch {
+      throw new Error(
+        'Cannot reach the server. The API may be offline — try again in a few minutes.',
+      );
+    }
     if (!res.ok) {
-      const err = await res.json();
+      const err = await res.json().catch(() => ({ message: 'Login failed' }));
       throw new Error(err.message || 'Login failed');
     }
     const data: AuthResponse = await res.json();

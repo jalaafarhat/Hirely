@@ -1,7 +1,8 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, OnInit } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../../core/services/auth.service';
+import { getApiBaseUrl } from '../../../core/config/api.config';
 
 @Component({
   selector: 'app-login',
@@ -14,6 +15,11 @@ import { AuthService } from '../../../core/services/auth.service';
           <h1 class="logo">Hirely</h1>
           <p class="subtitle">Sign in to your account</p>
         </div>
+        @if (apiDown()) {
+          <div class="error-msg">
+            Server is unreachable. The backend API appears to be offline — login will not work until it is restored.
+          </div>
+        }
         @if (error()) {
           <div class="error-msg">{{ error() }}</div>
         }
@@ -49,7 +55,7 @@ import { AuthService } from '../../../core/services/auth.service';
     .auth-links { display: flex; justify-content: space-between; margin-top: 20px; font-size: 14px; }
   `],
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   private auth = inject(AuthService);
   private router = inject(Router);
 
@@ -57,6 +63,24 @@ export class LoginComponent {
   password = '';
   loading = signal(false);
   error = signal('');
+  apiDown = signal(false);
+
+  ngOnInit() {
+    void this.checkApiHealth();
+  }
+
+  private async checkApiHealth() {
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/health`);
+      if (!res.ok) this.apiDown.set(true);
+      else {
+        const data = (await res.json()) as { status?: string };
+        if (data.status !== 'ok') this.apiDown.set(true);
+      }
+    } catch {
+      this.apiDown.set(true);
+    }
+  }
 
   async onSubmit() {
     this.loading.set(true);
