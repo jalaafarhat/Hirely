@@ -46,12 +46,14 @@ export class BillingService {
     this.cachedPlanId =
       this.config.get<string>('PAYPAL_PLAN_ID')?.trim() || null;
 
+    // Only PAYPAL_LIVE controls sandbox vs live — never infer from NODE_ENV,
+    // otherwise sandbox keys fail in production with "Client Authentication failed".
     const live =
-      this.config.get<string>('PAYPAL_LIVE')?.trim()?.toLowerCase() ===
-        'true' || this.config.get<string>('NODE_ENV') === 'production';
+      this.config.get<string>('PAYPAL_LIVE')?.trim()?.toLowerCase() === 'true';
     this.apiBase = live
       ? 'https://api-m.paypal.com'
       : 'https://api-m.sandbox.paypal.com';
+    this.logger.log(`PayPal mode: ${live ? 'LIVE' : 'sandbox'}`);
 
     if (!this.clientId || !this.clientSecret) {
       this.logger.warn(
