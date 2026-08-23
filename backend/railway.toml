@@ -3,10 +3,9 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-# Run migrations before traffic (logs show clearly if DB vars are wrong)
-releaseCommand = "npx prisma migrate deploy"
-startCommand = "node dist/src/main.js"
 healthcheckPath = "/api/v1/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
+# Migrations must run on every start — Railway startCommand overrides Dockerfile CMD
+startCommand = "sh -c 'npx prisma migrate deploy && exec node dist/src/main.js'"

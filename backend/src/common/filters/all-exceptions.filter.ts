@@ -36,8 +36,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
         status = HttpStatus.SERVICE_UNAVAILABLE;
         message =
           'Database is unavailable. Start Docker Desktop, then run: docker compose up -d postgres redis';
+      } else if (exception.code === 'P2022') {
+        this.logger.error(
+          `Schema mismatch (migration pending): ${exception.message}`,
+        );
+        status = HttpStatus.SERVICE_UNAVAILABLE;
+        message =
+          'Database schema is out of date. Redeploy the API so migrations can run.';
       } else {
-        this.logger.error(exception.message, exception.stack);
+        this.logger.error(
+          `Prisma ${exception.code}: ${exception.message}`,
+          exception.stack,
+        );
         message = 'Database error';
       }
     } else if (exception instanceof Error) {

@@ -27,6 +27,10 @@ describe('Health (e2e)', () => {
     return request(server)
       .get('/api/v1/health')
       .expect(200)
-      .expect({ status: 'ok', service: 'hirely-api' });
+      .expect((res) => {
+        const body = res.body as { status: string; service: string };
+        expect(body.status).toBe('ok');
+        expect(body.service).toBe('hirely-api');
+      });
   });
 });

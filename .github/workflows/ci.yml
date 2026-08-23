@@ -23,6 +23,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -57,6 +66,16 @@ jobs:
       - name: Test
         working-directory: backend
         run: npm test -- --passWithNoTests
+
+      - name: E2E Test
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://hirely:hirely@localhost:5432/hirely
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: ci-test-jwt-secret-min-32-chars-long
+          JWT_REFRESH_SECRET: ci-test-refresh-secret-min-32-chars
+          NODE_ENV: test
+        run: npm run test:e2e
 
   frontend:
     runs-on: ubuntu-latest
