@@ -6,11 +6,7 @@ import { JobSearchOptions } from '../common/types/search.types';
 import { CompanyCareersProvider } from './company-careers.provider';
 
 const MAX_GOOGLE_JOBS_PAGES = 2;
-const SITE_SEARCH_TARGETS = [
-  'linkedin.com/jobs',
-  'indeed.com',
-  'glassdoor.com/job',
-] as const;
+const MAX_ORGANIC_RESULTS = 20;
 
 type SerpJobRaw = {
   title?: string;
@@ -24,18 +20,45 @@ type SerpJobRaw = {
   via?: string;
 };
 
+type OrganicResult = {
+  title?: string;
+  link?: string;
+  snippet?: string;
+};
+
+/** Parse "Software Engineer - Google | LinkedIn" style titles */
+export function parseLinkedInOrganicTitle(raw: string): {
+  title: string;
+  company: string;
+} {
+  const cleaned = raw.replace(/\s*\|\s*LinkedIn\s*$/i, '').trim();
+  const dashIdx = cleaned.lastIndexOf(' - ');
+  if (dashIdx > 0) {
+    return {
+      title: cleaned.slice(0, dashIdx).trim(),
+      company: cleaned.slice(dashIdx + 3).trim(),
+    };
+  }
+  return { title: cleaned || 'Unknown', company: 'Unknown' };
+}
+
 @Injectable()
 export class SerpApiJobProvider implements JobSourceProvider {
   readonly name = 'serpapi';
   private readonly logger = new Logger(SerpApiJobProvider.name);
+  private lastError: string | null = null;
 
   constructor(private config: ConfigService) {}
+
+  getLastError(): string | null {
+    return this.lastError;
+  }
 
   async search(query: string, location?: string): Promise<NormalizedJob[]> {
     return this.searchGoogleJobs(query, location);
   }
 
-  /** Google Jobs via SerpAPI with optional site: filter (LinkedIn, Indeed, etc.) */
+  /** Google Jobs via SerpAPI with optional site: filter */
   async searchSite(
     siteFilter: string,
     query: string,
@@ -50,6 +73,53 @@ export class SerpApiJobProvider implements JobSourceProvider {
           ? 'glassdoor'
           : 'google_jobs';
     return this.searchGoogleJobs(siteQuery, location, source);
+  }
+
+  /**
+   * LinkedIn/Indeed listings via Google organic search (works when google_jobs
+   * site: filters return nothing).
+   */
+  async searchOrganicSite(
+    siteFilter: string,
+    query: string,
+    location?: string,
+    source = 'linkedin',
+  ): Promise<NormalizedJob[]> {
+    const apiKey = this.config.get<string>('SERPAPI_API_KEY');
+    if (!apiKey) {
+      this.logger.warn('No SERPAPI_API_KEY configured');
+      return [];
+    }
+
+    const attempts: Array<string | undefined> = [];
+    if (location?.trim()) attempts.push(location.trim());
+    attempts.push(undefined);
+
+    const seen = new Set<string>();
+    const jobs: NormalizedJob[] = [];
+
+    for (const loc of attempts) {
+      const batch = await this.fetchOrganicPage(
+        apiKey,
+        `${query} site:${siteFilter}`,
+        loc,
+        source,
+      );
+      for (const job of batch) {
+        if (!seen.has(job.url)) {
+          seen.add(job.url);
+          jobs.push(job);
+        }
+      }
+    }
+
+    if (jobs.length > 0) {
+      this.logger.log(
+        `SerpAPI organic ${source} "${query}": ${jobs.length} jobs`,
+      );
+    }
+
+    return jobs;
   }
 
   private async searchGoogleJobs(
@@ -68,25 +138,25 @@ export class SerpApiJobProvider implements JobSourceProvider {
     attempts.push(undefined);
     if (location?.trim()) attempts.push('United States');
 
-    const tried = new Set<string>();
-    for (const loc of attempts) {
-      const key = loc || '__global__';
-      if (tried.has(key)) continue;
-      tried.add(key);
+    const seen = new Set<string>();
+    const merged: NormalizedJob[] = [];
 
+    for (const loc of attempts) {
       const results = await this.fetchAllPages(apiKey, query, loc, forceSource);
-      if (results.length > 0) {
-        this.logger.log(
-          `SerpAPI "${query}"${loc ? ` @ ${loc}` : ''}: ${results.length} jobs`,
-        );
-        return results;
+      for (const job of results) {
+        if (!job.url || seen.has(job.url)) continue;
+        seen.add(job.url);
+        merged.push(job);
       }
     }
 
-    this.logger.warn(
-      `SerpAPI "${query}": no jobs after ${tried.size} attempt(s)`,
-    );
-    return [];
+    if (merged.length > 0) {
+      this.logger.log(`SerpAPI google_jobs "${query}": ${merged.length} jobs`);
+    } else {
+      this.logger.warn(`SerpAPI google_jobs "${query}": no jobs found`);
+    }
+
+    return merged;
   }
 
   private async fetchAllPages(
@@ -148,14 +218,9 @@ export class SerpApiJobProvider implements JobSourceProvider {
         serpapi_pagination?: { next_page_token?: string };
       };
 
-      const rawJobs = data.jobs_results || [];
-      if (rawJobs.length === 0 && data.error) {
-        this.logger.debug(
-          `SerpAPI "${query}"${location ? ` @ ${location}` : ''}: ${data.error}`,
-        );
-        return { jobs: [] };
-      }
+      this.recordSerpError(data.error);
 
+      const rawJobs = data.jobs_results || [];
       const jobs = rawJobs
         .map((job) => this.mapJob(job, forceSource))
         .filter((j) => j.url);
@@ -170,13 +235,81 @@ export class SerpApiJobProvider implements JobSourceProvider {
     }
   }
 
+  private async fetchOrganicPage(
+    apiKey: string,
+    query: string,
+    location: string | undefined,
+    source: string,
+  ): Promise<NormalizedJob[]> {
+    try {
+      const params = new URLSearchParams({
+        engine: 'google',
+        q: query,
+        api_key: apiKey,
+        num: String(MAX_ORGANIC_RESULTS),
+      });
+      if (location) params.set('location', location);
+
+      const response = await fetch(
+        `https://serpapi.com/search.json?${params.toString()}`,
+      );
+
+      if (!response.ok) return [];
+
+      const data = (await response.json()) as {
+        error?: string;
+        organic_results?: OrganicResult[];
+      };
+
+      this.recordSerpError(data.error);
+
+      return (data.organic_results || [])
+        .filter((r) => r.link?.includes('linkedin.com/jobs'))
+        .map((r) => this.mapOrganicResult(r, source))
+        .filter((j) => j.url);
+    } catch (error) {
+      this.logger.error(`SerpAPI organic search failed for "${query}"`, error);
+      return [];
+    }
+  }
+
+  private mapOrganicResult(
+    result: OrganicResult,
+    source: string,
+  ): NormalizedJob {
+    const { title, company } = parseLinkedInOrganicTitle(result.title || '');
+    return {
+      title,
+      company,
+      location: 'See listing',
+      description: result.snippet || title,
+      salary: '',
+      url: result.link || '',
+      source,
+      postedDate: new Date().toISOString().split('T')[0],
+    };
+  }
+
   private mapJob(job: SerpJobRaw, forceSource?: string): NormalizedJob {
+    const applyLinks =
+      job.apply_options?.map((o) => o.link).filter(Boolean) || [];
+    const linkedInUrl = applyLinks.find((u) =>
+      u?.includes('linkedin.com/jobs'),
+    );
     const url =
-      job.apply_options?.[0]?.link ||
+      linkedInUrl ||
+      applyLinks[0] ||
       job.share_link ||
       (job.job_id
         ? `https://www.google.com/search?ibp=htl;jobs&q=${encodeURIComponent((job.title || '') + ' ' + (job.company_name || ''))}`
         : '');
+
+    const via = job.via || '';
+    const source =
+      forceSource ||
+      (linkedInUrl || via.toLowerCase().includes('linkedin')
+        ? 'linkedin'
+        : this.detectSource(via));
 
     return {
       title: job.title || 'Unknown',
@@ -185,10 +318,22 @@ export class SerpApiJobProvider implements JobSourceProvider {
       description: job.description || job.title || '',
       salary: job.detected_extensions?.salary || '',
       url,
-      source: forceSource || this.detectSource(job.via || ''),
+      source,
       postedDate: new Date().toISOString().split('T')[0],
       externalId: job.job_id,
     };
+  }
+
+  private recordSerpError(error?: string): void {
+    if (!error) return;
+    this.lastError = error;
+    if (/run out of searches|quota|credit/i.test(error)) {
+      this.logger.error(
+        `SerpAPI quota issue: ${error}. Add credits at https://serpapi.com/manage-api-key`,
+      );
+    } else {
+      this.logger.warn(`SerpAPI: ${error}`);
+    }
   }
 
   private detectSource(via: string): string {
@@ -309,6 +454,10 @@ export class JobSourceService {
     private companyCareers: CompanyCareersProvider,
   ) {}
 
+  getSerpApiError(): string | null {
+    return this.serpApi.getLastError();
+  }
+
   getProviders(): JobSourceProvider[] {
     return [
       this.serpApi,
@@ -322,17 +471,20 @@ export class JobSourceService {
     ];
   }
 
-  /** Google Jobs + LinkedIn/Indeed/Glassdoor site searches in parallel */
+  /** Google Jobs + LinkedIn organic + site searches in parallel */
   async searchAll(query: string, location?: string): Promise<NormalizedJob[]> {
     const batches = await Promise.allSettled([
       this.serpApi.search(query, location),
-      ...SITE_SEARCH_TARGETS.map((site) =>
-        this.serpApi.searchSite(site, query, location),
-      ),
+      this.serpApi.searchOrganicSite('linkedin.com/jobs/view', query, location),
+      this.serpApi.searchOrganicSite('linkedin.com/jobs', query, location),
+      this.serpApi.searchSite('linkedin.com/jobs', query, location),
+      this.serpApi.searchSite('indeed.com', query, location),
+      this.serpApi.searchSite('glassdoor.com/job', query, location),
     ]);
 
     const seen = new Set<string>();
     const jobs: NormalizedJob[] = [];
+    let linkedInCount = 0;
 
     for (const batch of batches) {
       if (batch.status !== 'fulfilled') {
@@ -343,10 +495,13 @@ export class JobSourceService {
         if (!job.url || seen.has(job.url)) continue;
         seen.add(job.url);
         jobs.push(job);
+        if (job.source === 'linkedin') linkedInCount++;
       }
     }
 
-    this.logger.log(`searchAll "${query}": ${jobs.length} unique jobs`);
+    this.logger.log(
+      `searchAll "${query}": ${jobs.length} unique (${linkedInCount} LinkedIn)`,
+    );
     return jobs;
   }
 

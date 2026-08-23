@@ -105,6 +105,7 @@ describe('Remote jobs integration (mock data)', () => {
           useValue: {
             searchAll: jobSourceSearchAll,
             searchCompanyBoards: jobSourceSearchCompanyBoards,
+            getSerpApiError: jest.fn().mockReturnValue(null),
           },
         },
         {

@@ -310,6 +310,8 @@ export class AgentService {
         },
       });
 
+      const serpError = this.jobSources.getSerpApiError();
+
       const message = this.buildResultMessage(
         uniqueJobs.length,
         newJobs.length,
@@ -318,6 +320,8 @@ export class AgentService {
         options.sendEmail,
         jobsEmailed,
         emailError,
+        bySource,
+        serpError,
       );
 
       this.logger.log(`Agent completed for ${userId}: ${message}`);
@@ -350,26 +354,33 @@ export class AgentService {
     sendEmail: boolean,
     jobsEmailed = 0,
     emailError?: string,
+    bySource?: Record<string, number>,
+    serpError?: string | null,
   ): string {
     if (jobsFound === 0) {
-      return 'No jobs found from job boards. Try updating your CV with more skills and job titles.';
+      if (serpError && /run out of searches|quota|credit/i.test(serpError)) {
+        return 'No jobs found — SerpAPI search credits are exhausted. Add credits at serpapi.com or update SERPAPI_API_KEY on Railway.';
+      }
+      return 'No jobs found from job boards. Check SERPAPI_API_KEY on Railway and try updating your CV with more skills and job titles.';
     }
+    const linkedIn = bySource?.linkedin ?? 0;
+    const sourceNote = linkedIn > 0 ? ` (${linkedIn} from LinkedIn)` : '';
     if (newJobs === 0) {
-      return 'No new jobs since your last search. Check back later or lower your match threshold.';
+      return `Found ${jobsFound} jobs${sourceNote} but none are new since your last search. Check back later or lower your match threshold.`;
     }
     if (matched === 0) {
-      return `Found ${jobsFound} jobs but none scored above your ${threshold}% threshold. Try lowering your match threshold in Preferences.`;
+      return `Found ${jobsFound} jobs${sourceNote} but none scored above your ${threshold}% threshold. Try lowering your match threshold in Preferences, or filter Jobs by source "linkedin".`;
     }
     if (sendEmail && jobsEmailed > 0) {
-      return `Found ${matched} matching job${matched > 1 ? 's' : ''} and sent them to your email.`;
+      return `Found ${matched} matching job${matched > 1 ? 's' : ''}${sourceNote} and sent them to your email.`;
     }
     if (sendEmail && emailError) {
-      return `Found ${matched} matching job${matched > 1 ? 's' : ''}! ${emailError}`;
+      return `Found ${matched} matching job${matched > 1 ? 's' : ''}${sourceNote}! ${emailError}`;
     }
     if (sendEmail) {
-      return `Found ${matched} matching job${matched > 1 ? 's' : ''}. Email digests are enabled but delivery failed — check the Jobs page.`;
+      return `Found ${matched} matching job${matched > 1 ? 's' : ''}${sourceNote}. Email digests are enabled but delivery failed — check the Jobs page.`;
     }
-    return `Found ${matched} matching job${matched > 1 ? 's' : ''}! View them on the Jobs page. (Enable email digests in Preferences to also receive them by email.)`;
+    return `Found ${matched} matching job${matched > 1 ? 's' : ''}${sourceNote}! View them on the Jobs page. (Enable email digests in Preferences to also receive them by email.)`;
   }
 
   private buildSearchQueries(
