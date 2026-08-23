@@ -78,6 +78,7 @@ model User {
   subscriptionExpiresAt DateTime? @map("subscription_expires_at")
   paymeSubscriptionId String? @map("payme_subscription_id")
   paypalSubscriptionId String? @map("paypal_subscription_id")
+  trialExpiresAt    DateTime? @map("trial_expires_at")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 

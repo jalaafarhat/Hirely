@@ -13,11 +13,14 @@ import {
   MONTHLY_PRICE,
   PRODUCT_DESCRIPTION,
   PRODUCT_NAME,
+  TRIAL_HOURS,
 } from './billing.constants';
 
 export interface BillingStatus {
   hasAccess: boolean;
   exempt: boolean;
+  onTrial: boolean;
+  trialExpiresAt: string | null;
   status: SubscriptionStatus;
   expiresAt: string | null;
   priceCents: number;
@@ -74,8 +77,12 @@ export class BillingService {
     email: string;
     subscriptionStatus: SubscriptionStatus;
     subscriptionExpiresAt: Date | null;
+    trialExpiresAt?: Date | null;
   }): boolean {
     if (this.isExemptEmail(user.email)) return true;
+    if (user.trialExpiresAt && user.trialExpiresAt.getTime() > Date.now()) {
+      return true;
+    }
     if (user.subscriptionStatus !== SubscriptionStatus.ACTIVE) return false;
     if (
       user.subscriptionExpiresAt &&
@@ -93,14 +100,31 @@ export class BillingService {
         email: true,
         subscriptionStatus: true,
         subscriptionExpiresAt: true,
+        trialExpiresAt: true,
       },
     });
     if (!user) throw new ForbiddenException('User not found');
     if (!this.hasActiveAccess(user)) {
       throw new ForbiddenException(
-        'An active Hirely Pro subscription ($20/month) is required to run the job search agent. Go to Subscription to subscribe.',
+        'Your free trial has ended. Subscribe to Hirely Pro ($20/month) to keep using the job search agent.',
       );
     }
+  }
+
+  isOnTrial(user: {
+    email: string;
+    subscriptionStatus: SubscriptionStatus;
+    trialExpiresAt?: Date | null;
+  }): boolean {
+    if (this.isExemptEmail(user.email)) return false;
+    if (user.subscriptionStatus === SubscriptionStatus.ACTIVE) return false;
+    return !!(
+      user.trialExpiresAt && user.trialExpiresAt.getTime() > Date.now()
+    );
+  }
+
+  static trialEndDate(): Date {
+    return new Date(Date.now() + TRIAL_HOURS * 60 * 60 * 1000);
   }
 
   async getStatus(userId: string): Promise<BillingStatus> {
@@ -110,12 +134,15 @@ export class BillingService {
         email: true,
         subscriptionStatus: true,
         subscriptionExpiresAt: true,
+        trialExpiresAt: true,
       },
     });
 
     return {
       hasAccess: this.hasActiveAccess(user),
       exempt: this.isExemptEmail(user.email),
+      onTrial: this.isOnTrial(user),
+      trialExpiresAt: user.trialExpiresAt?.toISOString() ?? null,
       status: user.subscriptionStatus,
       expiresAt: user.subscriptionExpiresAt?.toISOString() ?? null,
       priceCents: Math.round(parseFloat(MONTHLY_PRICE) * 100),

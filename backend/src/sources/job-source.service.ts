@@ -1,62 +1,84 @@
 import { Injectable, Logger } from '@nestjs/common';
-
 import { ConfigService } from '@nestjs/config';
-
 import { JobSourceProvider } from './job-source.interface';
-
 import { NormalizedJob, ParsedProfile } from '../common/types';
 import { JobSearchOptions } from '../common/types/search.types';
 import { CompanyCareersProvider } from './company-careers.provider';
 
+const MAX_GOOGLE_JOBS_PAGES = 2;
+const SITE_SEARCH_TARGETS = [
+  'linkedin.com/jobs',
+  'indeed.com',
+  'glassdoor.com/job',
+] as const;
+
+type SerpJobRaw = {
+  title?: string;
+  company_name?: string;
+  location?: string;
+  description?: string;
+  detected_extensions?: { salary?: string };
+  apply_options?: Array<{ link?: string }>;
+  share_link?: string;
+  job_id?: string;
+  via?: string;
+};
+
 @Injectable()
 export class SerpApiJobProvider implements JobSourceProvider {
   readonly name = 'serpapi';
-
   private readonly logger = new Logger(SerpApiJobProvider.name);
 
   constructor(private config: ConfigService) {}
 
   async search(query: string, location?: string): Promise<NormalizedJob[]> {
-    const apiKey = this.config.get<string>('SERPAPI_API_KEY');
+    return this.searchGoogleJobs(query, location);
+  }
 
+  /** Google Jobs via SerpAPI with optional site: filter (LinkedIn, Indeed, etc.) */
+  async searchSite(
+    siteFilter: string,
+    query: string,
+    location?: string,
+  ): Promise<NormalizedJob[]> {
+    const siteQuery = `${query} site:${siteFilter}`;
+    const source = siteFilter.includes('linkedin')
+      ? 'linkedin'
+      : siteFilter.includes('indeed')
+        ? 'indeed'
+        : siteFilter.includes('glassdoor')
+          ? 'glassdoor'
+          : 'google_jobs';
+    return this.searchGoogleJobs(siteQuery, location, source);
+  }
+
+  private async searchGoogleJobs(
+    query: string,
+    location?: string,
+    forceSource?: string,
+  ): Promise<NormalizedJob[]> {
+    const apiKey = this.config.get<string>('SERPAPI_API_KEY');
     if (!apiKey) {
       this.logger.warn('No SERPAPI_API_KEY configured');
-
       return [];
     }
 
     const attempts: Array<string | undefined> = [];
-
-    if (location?.trim()) {
-      attempts.push(location.trim());
-    }
-
+    if (location?.trim()) attempts.push(location.trim());
     attempts.push(undefined);
-
-    if (location?.trim()) {
-      attempts.push('United States');
-    }
+    if (location?.trim()) attempts.push('United States');
 
     const tried = new Set<string>();
-
     for (const loc of attempts) {
       const key = loc || '__global__';
-
       if (tried.has(key)) continue;
-
       tried.add(key);
 
-      const results = await this.fetchJobs(apiKey, query, loc);
-
+      const results = await this.fetchAllPages(apiKey, query, loc, forceSource);
       if (results.length > 0) {
-        if (loc !== location) {
-          this.logger.log(
-            `SerpAPI "${query}"${loc ? ` (fallback: ${loc})` : ''}: ${results.length} jobs`,
-          );
-        } else {
-          this.logger.log(`SerpAPI "${query}": ${results.length} jobs`);
-        }
-
+        this.logger.log(
+          `SerpAPI "${query}"${loc ? ` @ ${loc}` : ''}: ${results.length} jobs`,
+        );
         return results;
       }
     }
@@ -64,27 +86,49 @@ export class SerpApiJobProvider implements JobSourceProvider {
     this.logger.warn(
       `SerpAPI "${query}": no jobs after ${tried.size} attempt(s)`,
     );
-
     return [];
   }
 
-  private async fetchJobs(
+  private async fetchAllPages(
     apiKey: string,
-
     query: string,
-
     location?: string,
+    forceSource?: string,
   ): Promise<NormalizedJob[]> {
+    const allJobs: NormalizedJob[] = [];
+    let nextToken: string | undefined;
+
+    for (let page = 0; page < MAX_GOOGLE_JOBS_PAGES; page++) {
+      const { jobs, nextPageToken } = await this.fetchJobsPage(
+        apiKey,
+        query,
+        location,
+        nextToken,
+        forceSource,
+      );
+      allJobs.push(...jobs);
+      if (!nextPageToken || jobs.length === 0) break;
+      nextToken = nextPageToken;
+    }
+
+    return allJobs;
+  }
+
+  private async fetchJobsPage(
+    apiKey: string,
+    query: string,
+    location?: string,
+    nextPageToken?: string,
+    forceSource?: string,
+  ): Promise<{ jobs: NormalizedJob[]; nextPageToken?: string }> {
     try {
       const params = new URLSearchParams({
         engine: 'google_jobs',
-
         q: query,
-
         api_key: apiKey,
       });
-
       if (location) params.set('location', location);
+      if (nextPageToken) params.set('next_page_token', nextPageToken);
 
       const response = await fetch(
         `https://serpapi.com/search.json?${params.toString()}`,
@@ -92,120 +136,83 @@ export class SerpApiJobProvider implements JobSourceProvider {
 
       if (!response.ok) {
         const body = await response.text();
-
         this.logger.error(
           `SerpAPI HTTP ${response.status} for "${query}": ${body.slice(0, 200)}`,
         );
-
-        return [];
+        return { jobs: [] };
       }
 
       const data = (await response.json()) as {
         error?: string;
-
-        jobs_results?: Array<{
-          title?: string;
-
-          company_name?: string;
-
-          location?: string;
-
-          description?: string;
-
-          detected_extensions?: { salary?: string };
-
-          apply_options?: Array<{ link?: string }>;
-
-          share_link?: string;
-
-          job_id?: string;
-
-          via?: string;
-        }>;
+        jobs_results?: SerpJobRaw[];
+        serpapi_pagination?: { next_page_token?: string };
       };
 
       const rawJobs = data.jobs_results || [];
-
       if (rawJobs.length === 0 && data.error) {
         this.logger.debug(
           `SerpAPI "${query}"${location ? ` @ ${location}` : ''}: ${data.error}`,
         );
-
-        return [];
+        return { jobs: [] };
       }
 
-      return rawJobs
-
-        .map((job) => {
-          const url =
-            job.apply_options?.[0]?.link ||
-            job.share_link ||
-            (job.job_id
-              ? `https://www.google.com/search?ibp=htl;jobs&q=${encodeURIComponent((job.title || '') + ' ' + (job.company_name || ''))}`
-              : '');
-
-          return {
-            title: job.title || 'Unknown',
-
-            company: job.company_name || 'Unknown',
-
-            location: job.location || 'Unknown',
-
-            description: job.description || job.title || '',
-
-            salary: job.detected_extensions?.salary || '',
-
-            url,
-
-            source: this.detectSource(job.via || ''),
-
-            postedDate: new Date().toISOString().split('T')[0],
-
-            externalId: job.job_id,
-          };
-        })
-
+      const jobs = rawJobs
+        .map((job) => this.mapJob(job, forceSource))
         .filter((j) => j.url);
+
+      return {
+        jobs,
+        nextPageToken: data.serpapi_pagination?.next_page_token,
+      };
     } catch (error) {
       this.logger.error(`SerpAPI search failed for "${query}"`, error);
-
-      return [];
+      return { jobs: [] };
     }
+  }
+
+  private mapJob(job: SerpJobRaw, forceSource?: string): NormalizedJob {
+    const url =
+      job.apply_options?.[0]?.link ||
+      job.share_link ||
+      (job.job_id
+        ? `https://www.google.com/search?ibp=htl;jobs&q=${encodeURIComponent((job.title || '') + ' ' + (job.company_name || ''))}`
+        : '');
+
+    return {
+      title: job.title || 'Unknown',
+      company: job.company_name || 'Unknown',
+      location: job.location || 'Unknown',
+      description: job.description || job.title || '',
+      salary: job.detected_extensions?.salary || '',
+      url,
+      source: forceSource || this.detectSource(job.via || ''),
+      postedDate: new Date().toISOString().split('T')[0],
+      externalId: job.job_id,
+    };
   }
 
   private detectSource(via: string): string {
     const lower = via.toLowerCase();
-
     if (lower.includes('linkedin')) return 'linkedin';
-
     if (lower.includes('indeed')) return 'indeed';
-
     if (lower.includes('glassdoor')) return 'glassdoor';
-
     if (lower.includes('greenhouse')) return 'greenhouse';
-
     if (lower.includes('lever')) return 'lever';
-
     if (lower.includes('ashby')) return 'ashby';
-
     if (lower.includes('wellfound') || lower.includes('angelist'))
       return 'wellfound';
-
     return 'google_jobs';
   }
 }
 
 function createFilteredProvider(
   base: SerpApiJobProvider,
-
   sourceName: string,
 ): JobSourceProvider {
   return {
     name: sourceName,
-
     search: async (query, location) => {
       const jobs = await base.search(query, location);
-
       return jobs.filter((j) => j.source === sourceName);
     },
   };
@@ -214,9 +221,7 @@ function createFilteredProvider(
 @Injectable()
 export class LinkedInProvider implements JobSourceProvider {
   readonly name = 'linkedin';
-
   constructor(private serp: SerpApiJobProvider) {}
-
   search(query: string, location?: string) {
     return createFilteredProvider(this.serp, 'linkedin').search(
       query,
@@ -228,9 +233,7 @@ export class LinkedInProvider implements JobSourceProvider {
 @Injectable()
 export class IndeedProvider implements JobSourceProvider {
   readonly name = 'indeed';
-
   constructor(private serp: SerpApiJobProvider) {}
-
   search(query: string, location?: string) {
     return createFilteredProvider(this.serp, 'indeed').search(query, location);
   }
@@ -239,9 +242,7 @@ export class IndeedProvider implements JobSourceProvider {
 @Injectable()
 export class GlassdoorProvider implements JobSourceProvider {
   readonly name = 'glassdoor';
-
   constructor(private serp: SerpApiJobProvider) {}
-
   search(query: string, location?: string) {
     return createFilteredProvider(this.serp, 'glassdoor').search(
       query,
@@ -253,9 +254,7 @@ export class GlassdoorProvider implements JobSourceProvider {
 @Injectable()
 export class GreenhouseProvider implements JobSourceProvider {
   readonly name = 'greenhouse';
-
   constructor(private serp: SerpApiJobProvider) {}
-
   search(query: string, location?: string) {
     return createFilteredProvider(this.serp, 'greenhouse').search(
       query,
@@ -267,9 +266,7 @@ export class GreenhouseProvider implements JobSourceProvider {
 @Injectable()
 export class LeverProvider implements JobSourceProvider {
   readonly name = 'lever';
-
   constructor(private serp: SerpApiJobProvider) {}
-
   search(query: string, location?: string) {
     return createFilteredProvider(this.serp, 'lever').search(query, location);
   }
@@ -278,9 +275,7 @@ export class LeverProvider implements JobSourceProvider {
 @Injectable()
 export class AshbyProvider implements JobSourceProvider {
   readonly name = 'ashby';
-
   constructor(private serp: SerpApiJobProvider) {}
-
   search(query: string, location?: string) {
     return createFilteredProvider(this.serp, 'ashby').search(query, location);
   }
@@ -289,9 +284,7 @@ export class AshbyProvider implements JobSourceProvider {
 @Injectable()
 export class WellfoundProvider implements JobSourceProvider {
   readonly name = 'wellfound';
-
   constructor(private serp: SerpApiJobProvider) {}
-
   search(query: string, location?: string) {
     return createFilteredProvider(this.serp, 'wellfound').search(
       query,
@@ -302,6 +295,8 @@ export class WellfoundProvider implements JobSourceProvider {
 
 @Injectable()
 export class JobSourceService {
+  private readonly logger = new Logger(JobSourceService.name);
+
   constructor(
     private serpApi: SerpApiJobProvider,
     private linkedin: LinkedInProvider,
@@ -317,35 +312,42 @@ export class JobSourceService {
   getProviders(): JobSourceProvider[] {
     return [
       this.serpApi,
-
       this.linkedin,
-
       this.indeed,
-
       this.glassdoor,
-
       this.greenhouse,
-
       this.lever,
-
       this.ashby,
-
       this.wellfound,
     ];
   }
 
+  /** Google Jobs + LinkedIn/Indeed/Glassdoor site searches in parallel */
   async searchAll(query: string, location?: string): Promise<NormalizedJob[]> {
-    const results = await this.serpApi.search(query, location);
+    const batches = await Promise.allSettled([
+      this.serpApi.search(query, location),
+      ...SITE_SEARCH_TARGETS.map((site) =>
+        this.serpApi.searchSite(site, query, location),
+      ),
+    ]);
 
     const seen = new Set<string>();
+    const jobs: NormalizedJob[] = [];
 
-    return results.filter((job) => {
-      if (seen.has(job.url)) return false;
+    for (const batch of batches) {
+      if (batch.status !== 'fulfilled') {
+        this.logger.warn('Job source batch failed', batch.reason);
+        continue;
+      }
+      for (const job of batch.value) {
+        if (!job.url || seen.has(job.url)) continue;
+        seen.add(job.url);
+        jobs.push(job);
+      }
+    }
 
-      seen.add(job.url);
-
-      return true;
-    });
+    this.logger.log(`searchAll "${query}": ${jobs.length} unique jobs`);
+    return jobs;
   }
 
   async searchCompanyBoards(

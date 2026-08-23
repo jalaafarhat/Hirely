@@ -5,6 +5,8 @@ import { ApiService } from '../../core/services/api.service';
 interface BillingStatus {
   hasAccess: boolean;
   exempt: boolean;
+  onTrial?: boolean;
+  trialExpiresAt?: string | null;
   status: string;
   expiresAt: string | null;
   priceCents: number;
@@ -52,6 +54,8 @@ interface BillingStatus {
             <span class="value" [class.active]="status()!.hasAccess">
               @if (status()!.exempt) {
                 Free (owner account)
+              } @else if (status()!.onTrial) {
+                Free trial — ends {{ formatDate(status()!.trialExpiresAt!) }}
               } @else if (status()!.hasAccess) {
                 Active — {{ status()!.status }}
               } @else {
@@ -59,6 +63,12 @@ interface BillingStatus {
               }
             </span>
           </div>
+
+          @if (status()!.onTrial && !status()!.exempt) {
+            <div class="info-box">
+              You have <strong>1 free day</strong> of Hirely Pro. Subscribe before the trial ends to keep access.
+            </div>
+          }
 
           @if (status()!.exempt) {
             <div class="info-box">

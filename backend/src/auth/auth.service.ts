@@ -10,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../email/notification.service';
+import { BillingService } from '../billing/billing.service';
 import {
   RegisterDto,
   LoginDto,
@@ -44,12 +45,14 @@ export class AuthService {
         passwordHash,
         name: dto.name,
         emailVerifyToken: verifyToken,
+        trialExpiresAt: BillingService.trialEndDate(),
         preferences: {
           create: {
             workModes: ['REMOTE', 'HYBRID'],
             jobTypes: ['FULL_TIME'],
             digestHours: [9, 15],
             emailDigestEnabled: true,
+            agentEnabled: true,
           },
         },
       },

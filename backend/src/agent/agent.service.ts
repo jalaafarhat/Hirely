@@ -15,8 +15,8 @@ import { AgentRunResult } from '../common/types/agent.types';
 import { JobSearchOptions } from '../common/types/search.types';
 import { isJobRelevant } from '../matching/job-relevance.util';
 
-const MAX_QUERIES = 5;
-const MAX_JOBS_TO_MATCH = 40;
+const MAX_QUERIES = 8;
+const MAX_JOBS_TO_MATCH = 80;
 
 @Injectable()
 export class AgentService {
@@ -89,7 +89,7 @@ export class AgentService {
 
       const users = await this.prisma.user.findMany({
         where: {
-          preferences: { agentEnabled: true, emailDigestEnabled: true },
+          preferences: { agentEnabled: true },
           profile: { isNot: null },
         },
         include: { profile: true, preferences: true },
@@ -97,7 +97,10 @@ export class AgentService {
 
       for (const user of users) {
         if (!user.profile || !user.preferences) continue;
-        if (!this.billing.hasActiveAccess(user)) continue;
+        if (!this.billing.hasActiveAccess(user)) {
+          this.logger.debug(`Cron skip ${user.email}: no active access`);
+          continue;
+        }
 
         const userHour = this.getUserLocalHour(user.timezone, now);
         const digestHours = user.preferences.digestHours?.length
@@ -106,7 +109,11 @@ export class AgentService {
 
         if (!digestHours.includes(userHour)) continue;
 
-        await this.enqueueUserRun(user.id, true);
+        const sendEmail = user.preferences.emailDigestEnabled;
+        this.logger.log(
+          `Cron enqueue ${user.email} (hour ${userHour}, email=${sendEmail})`,
+        );
+        await this.enqueueUserRun(user.id, sendEmail);
       }
     } catch (error) {
       this.logger.error('Agent cron failed', error);
@@ -164,12 +171,26 @@ export class AgentService {
       );
       allJobs.push(...companyJobs);
 
-      for (const query of queries) {
-        const jobs = await this.jobSources.searchAll(query, location);
-        allJobs.push(...jobs);
+      const queryResults = await Promise.allSettled(
+        queries.map((query) => this.jobSources.searchAll(query, location)),
+      );
+      for (const batch of queryResults) {
+        if (batch.status === 'fulfilled') {
+          allJobs.push(...batch.value);
+        } else {
+          this.logger.warn('Query search failed', batch.reason);
+        }
       }
 
       const uniqueJobs = this.deduplicateByUrl(allJobs);
+      const bySource = uniqueJobs.reduce<Record<string, number>>((acc, j) => {
+        const key = j.source || 'unknown';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+      this.logger.log(
+        `Agent ${user.email}: ${uniqueJobs.length} unique jobs — ${JSON.stringify(bySource)}`,
+      );
       const profile = user.profile;
       const preferences = user.preferences;
       const relevantJobs = uniqueJobs.filter((job) =>
@@ -267,8 +288,15 @@ export class AgentService {
         } else {
           emailError =
             emailResult.error ||
-            'Email could not be delivered. Restart the backend after updating EMAIL_FROM in backend/.env.';
+            'Email could not be delivered. Check RESEND_API_KEY and EMAIL_FROM on Railway.';
+          this.logger.warn(`Digest failed for ${user.email}: ${emailError}`);
         }
+      } else if (options.sendEmail && !user.preferences.emailDigestEnabled) {
+        this.logger.log(`Email skipped for ${user.email}: digest disabled`);
+      } else if (options.sendEmail && matchedForEmail.length === 0) {
+        this.logger.log(
+          `Email skipped for ${user.email}: no jobs above ${threshold}% threshold`,
+        );
       }
 
       await this.prisma.agentRun.update({

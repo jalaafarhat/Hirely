@@ -7,3 +7,6 @@ export const MONTHLY_CURRENCY = 'USD';
 export const PRODUCT_NAME = 'Hirely Pro';
 export const PRODUCT_DESCRIPTION =
   'Monthly access to the Hirely job search agent';
+
+/** Free Pro trial for new users */
+export const TRIAL_HOURS = 24;

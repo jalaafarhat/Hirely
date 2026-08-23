@@ -94,7 +94,25 @@ describe('BillingService', () => {
       ).toBe(false);
     });
 
-    it('blocks agent use for unpaid users', async () => {
+    it('grants access during active trial', () => {
+      const trialUser = {
+        ...unpaidUser,
+        trialExpiresAt: new Date(Date.now() + 12 * 60 * 60 * 1000),
+      };
+      expect(service.hasActiveAccess(trialUser)).toBe(true);
+      expect(service.isOnTrial(trialUser)).toBe(true);
+    });
+
+    it('denies access when trial expired', () => {
+      expect(
+        service.hasActiveAccess({
+          ...unpaidUser,
+          trialExpiresAt: new Date(Date.now() - 1000),
+        }),
+      ).toBe(false);
+    });
+
+    it('blocks agent use for unpaid users without trial', async () => {
       prisma.user.findUnique.mockResolvedValue(unpaidUser);
       await expect(service.assertCanUseAgent('user-unpaid')).rejects.toThrow(
         ForbiddenException,
